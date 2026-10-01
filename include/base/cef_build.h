@@ -155,7 +155,7 @@
 //   http://msdn.microsoft.com/en-us/library/b0084kay.aspx
 //   http://www.agner.org/optimize/calling_conventions.pdf
 //   or with gcc, run: "echo | gcc -E -dM -"
-#if defined(_M_X64) || defined(__x86_64__)
+#if (defined(_M_X64) || defined(__x86_64__)) && !defined(_M_ARM64EC)
 #define ARCH_CPU_X86_FAMILY 1
 #define ARCH_CPU_X86_64 1
 #define ARCH_CPU_64_BITS 1
@@ -190,7 +190,7 @@
 #define ARCH_CPU_ARMEL 1
 #define ARCH_CPU_32_BITS 1
 #define ARCH_CPU_LITTLE_ENDIAN 1
-#elif defined(__aarch64__) || defined(_M_ARM64)
+#elif defined(__aarch64__) || defined(_M_ARM64) || defined(_M_ARM64EC)
 #define ARCH_CPU_ARM_FAMILY 1
 #define ARCH_CPU_ARM64 1
 #define ARCH_CPU_64_BITS 1

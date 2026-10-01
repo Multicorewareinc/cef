@@ -1,0 +1,26 @@
+diff --git a/src/smooth/ftgrays.c b/src/smooth/ftgrays.c
+index 622035aa797c8f46668c29a75bc8399ae5a35781..7aa6d62ce6137e260624ff1b07e82f0f28040063 100644
+--- a/src/smooth/ftgrays.c
++++ b/src/smooth/ftgrays.c
+@@ -1006,15 +1006,17 @@ typedef ptrdiff_t  FT_PtrDist;
+    *
+    * For other cases, using binary splits is actually slightly faster.
+    */
+-#if defined( __SSE2__ )                          || \
+-    defined( __x86_64__ )                        || \
+-    defined( _M_AMD64 )                          || \
+-    ( defined( _M_IX86_FP ) && _M_IX86_FP >= 2 )
++   #if ( defined( __SSE2__ )                          || \
++   defined( __x86_64__ )                        || \
++   defined( _M_AMD64 )                          || \
++   ( defined( _M_IX86_FP ) && _M_IX86_FP >= 2 ) ) && \
++ !defined( _M_ARM64EC )
+ #  define FT_SSE2 1
+ #else
+ #  define FT_SSE2 0
+ #endif
+ 
++
+ #if FT_SSE2                || \
+     defined( __aarch64__ ) || \
+     defined( _M_ARM64 )

@@ -1,0 +1,309 @@
+diff --git a/modules/third_party/g711/g711.h b/modules/third_party/g711/g711.h
+index 4eef42c0bf1482b6c3ace0093c39c936576bed26..af41b1028aa0325193eee8eb72c26c64aec37dcd 100644
+--- a/modules/third_party/g711/g711.h
++++ b/modules/third_party/g711/g711.h
+@@ -80,7 +80,7 @@ static __inline__ int bottom_bit(unsigned int bits) {
+       : "a"(bits));
+   return res;
+ }
+-#elif defined(__x86_64__)
++#elif defined(__x86_64__) && !defined(_M_ARM64EC)
+ static __inline__ int top_bit(unsigned int bits) {
+   int res;
+ 
+diff --git a/pc/stats_collector.cc b/pc/stats_collector.cc
+index 97dd5bdba22a3555ba7cd5e4ee8b086d11427d8d..e0c1977fc4c23d6c42755a886dd5feec95d60612 100644
+--- a/pc/stats_collector.cc
++++ b/pc/stats_collector.cc
+@@ -188,9 +188,8 @@ void ExtractStats(const cricket::VoiceReceiverInfo& info,
+       {StatsReport::kStatsValueNameAccelerateRate, info.accelerate_rate},
+       {StatsReport::kStatsValueNamePreemptiveExpandRate,
+        info.preemptive_expand_rate},
+-      {StatsReport::kStatsValueNameTotalAudioEnergy, info.total_output_energy},
+-      {StatsReport::kStatsValueNameTotalSamplesDuration,
+-       info.total_output_duration}};
++       {StatsReport::kStatsValueNameTotalAudioEnergy, static_cast<float>(info.total_output_energy)},
++       {StatsReport::kStatsValueNameTotalSamplesDuration, static_cast<float>(info.total_output_duration)}};
+ 
+   const IntForAdd ints[] = {
+       {StatsReport::kStatsValueNameCurrentDelayMs, info.delay_estimate_ms},
+@@ -244,9 +243,8 @@ void ExtractStats(const cricket::VoiceSenderInfo& info,
+   SetAudioProcessingStats(report, info.apm_statistics);
+ 
+   const FloatForAdd floats[] = {
+-      {StatsReport::kStatsValueNameTotalAudioEnergy, info.total_input_energy},
+-      {StatsReport::kStatsValueNameTotalSamplesDuration,
+-       info.total_input_duration}};
++    {StatsReport::kStatsValueNameTotalAudioEnergy, static_cast<float>(info.total_input_energy)},
++    {StatsReport::kStatsValueNameTotalSamplesDuration, static_cast<float>(info.total_input_duration)}};
+ 
+   RTC_DCHECK_GE(info.audio_level, 0);
+   const IntForAdd ints[] = {
+@@ -340,8 +338,9 @@ void ExtractStats(const cricket::VideoReceiverInfo& info,
+       {StatsReport::kStatsValueNamePlisSent, info.plis_sent},
+       {StatsReport::kStatsValueNameRenderDelayMs, info.render_delay_ms},
+       {StatsReport::kStatsValueNameTargetDelayMs, info.target_delay_ms},
+-      {StatsReport::kStatsValueNameFramesDecoded, info.frames_decoded},
+-  };
++      {StatsReport::kStatsValueNameFramesDecoded,
++        static_cast<int>(std::min<uint32_t>(info.frames_decoded, std::numeric_limits<int>::max()))}
++      };
+ 
+   for (const auto& i : ints)
+     report->AddInt(i.name, i.value);
+@@ -377,22 +376,24 @@ void ExtractStats(const cricket::VideoSenderInfo& info,
+   if (info.qp_sum)
+     report->AddInt(StatsReport::kStatsValueNameQpSum, *info.qp_sum);
+ 
+-  const IntForAdd ints[] = {
++    const IntForAdd ints[] = {
+       {StatsReport::kStatsValueNameAdaptationChanges, info.adapt_changes},
+       {StatsReport::kStatsValueNameAvgEncodeMs, info.avg_encode_ms},
+-      {StatsReport::kStatsValueNameEncodeUsagePercent,
+-       info.encode_usage_percent},
++      {StatsReport::kStatsValueNameEncodeUsagePercent, info.encode_usage_percent},
+       {StatsReport::kStatsValueNameFirsReceived, info.firs_rcvd},
+       {StatsReport::kStatsValueNameFrameHeightSent, info.send_frame_height},
+-      {StatsReport::kStatsValueNameFrameRateInput, round(info.framerate_input)},
++      {StatsReport::kStatsValueNameFrameRateInput, static_cast<int>(round(info.framerate_input))},
+       {StatsReport::kStatsValueNameFrameRateSent, info.framerate_sent},
+       {StatsReport::kStatsValueNameFrameWidthSent, info.send_frame_width},
+-      {StatsReport::kStatsValueNameNacksReceived, info.nacks_rcvd},
++      {StatsReport::kStatsValueNameNacksReceived,
++       static_cast<int>(std::min<uint32_t>(info.nacks_rcvd, std::numeric_limits<int>::max()))},
+       {StatsReport::kStatsValueNamePacketsLost, info.packets_lost},
+       {StatsReport::kStatsValueNamePacketsSent, info.packets_sent},
+       {StatsReport::kStatsValueNamePlisReceived, info.plis_rcvd},
+-      {StatsReport::kStatsValueNameFramesEncoded, info.frames_encoded},
+-      {StatsReport::kStatsValueNameHugeFramesSent, info.huge_frames_sent},
++      {StatsReport::kStatsValueNameFramesEncoded,
++       static_cast<int>(std::min<uint32_t>(info.frames_encoded, std::numeric_limits<int>::max()))},
++      {StatsReport::kStatsValueNameHugeFramesSent,
++       static_cast<int>(std::min<uint32_t>(info.huge_frames_sent, std::numeric_limits<int>::max()))}
+   };
+ 
+   for (const auto& i : ints)
+@@ -752,105 +753,109 @@ StatsReport* StatsCollector::AddCertificateReports(
+ }
+ 
+ StatsReport* StatsCollector::AddConnectionInfoReport(
+-    const std::string& content_name,
+-    int component,
+-    int connection_id,
+-    const StatsReport::Id& channel_report_id,
+-    const cricket::ConnectionInfo& info) {
+-  StatsReport::Id id(
+-      StatsReport::NewCandidatePairId(content_name, component, connection_id));
+-  StatsReport* report = reports_.ReplaceOrAddNew(id);
+-  report->set_timestamp(stats_gathering_started_);
+-
+-  const BoolForAdd bools[] = {
+-      {StatsReport::kStatsValueNameActiveConnection, info.best_connection},
+-      {StatsReport::kStatsValueNameReceiving, info.receiving},
+-      {StatsReport::kStatsValueNameWritable, info.writable},
+-  };
+-  for (const auto& b : bools)
+-    report->AddBoolean(b.name, b.value);
+-
+-  report->AddId(StatsReport::kStatsValueNameChannelId, channel_report_id);
+-  cricket::CandidateStats local_candidate_stats(info.local_candidate);
+-  cricket::CandidateStats remote_candidate_stats(info.remote_candidate);
+-  report->AddId(StatsReport::kStatsValueNameLocalCandidateId,
+-                AddCandidateReport(local_candidate_stats, true)->id());
+-  report->AddId(StatsReport::kStatsValueNameRemoteCandidateId,
+-                AddCandidateReport(remote_candidate_stats, false)->id());
+-
+-  const Int64ForAdd int64s[] = {
+-      {StatsReport::kStatsValueNameBytesReceived, info.recv_total_bytes},
+-      {StatsReport::kStatsValueNameBytesSent, info.sent_total_bytes},
+-      {StatsReport::kStatsValueNamePacketsSent, info.sent_total_packets},
+-      {StatsReport::kStatsValueNameRtt, info.rtt},
+-      {StatsReport::kStatsValueNameSendPacketsDiscarded,
+-       info.sent_discarded_packets},
+-      {StatsReport::kStatsValueNameSentPingRequestsTotal,
+-       info.sent_ping_requests_total},
+-      {StatsReport::kStatsValueNameSentPingRequestsBeforeFirstResponse,
+-       info.sent_ping_requests_before_first_response},
+-      {StatsReport::kStatsValueNameSentPingResponses, info.sent_ping_responses},
+-      {StatsReport::kStatsValueNameRecvPingRequests, info.recv_ping_requests},
+-      {StatsReport::kStatsValueNameRecvPingResponses, info.recv_ping_responses},
+-  };
+-  for (const auto& i : int64s)
+-    report->AddInt64(i.name, i.value);
+-
+-  report->AddString(StatsReport::kStatsValueNameLocalAddress,
+-                    info.local_candidate.address().ToString());
+-  report->AddString(StatsReport::kStatsValueNameLocalCandidateType,
+-                    info.local_candidate.type());
+-  report->AddString(StatsReport::kStatsValueNameRemoteAddress,
+-                    info.remote_candidate.address().ToString());
+-  report->AddString(StatsReport::kStatsValueNameRemoteCandidateType,
+-                    info.remote_candidate.type());
+-  report->AddString(StatsReport::kStatsValueNameTransportType,
+-                    info.local_candidate.protocol());
+-  report->AddString(StatsReport::kStatsValueNameLocalCandidateRelayProtocol,
+-                    info.local_candidate.relay_protocol());
+-
+-  return report;
++  const std::string& content_name,
++  int component,
++  int connection_id,
++  const StatsReport::Id& channel_report_id,
++  const cricket::ConnectionInfo& info) {
++StatsReport::Id id(
++    StatsReport::NewCandidatePairId(content_name, component, connection_id));
++StatsReport* report = reports_.ReplaceOrAddNew(id);
++report->set_timestamp(stats_gathering_started_);
++
++const BoolForAdd bools[] = {
++    {StatsReport::kStatsValueNameActiveConnection, info.best_connection},
++    {StatsReport::kStatsValueNameReceiving, info.receiving},
++    {StatsReport::kStatsValueNameWritable, info.writable},
++};
++for (const auto& b : bools)
++  report->AddBoolean(b.name, b.value);
++
++report->AddId(StatsReport::kStatsValueNameChannelId, channel_report_id);
++cricket::CandidateStats local_candidate_stats(info.local_candidate);
++cricket::CandidateStats remote_candidate_stats(info.remote_candidate);
++report->AddId(StatsReport::kStatsValueNameLocalCandidateId,
++              AddCandidateReport(local_candidate_stats, true)->id());
++report->AddId(StatsReport::kStatsValueNameRemoteCandidateId,
++              AddCandidateReport(remote_candidate_stats, false)->id());
++
++const Int64ForAdd int64s[] = {
++    {StatsReport::kStatsValueNameBytesReceived,
++     static_cast<long long>(std::min<size_t>(info.recv_total_bytes, std::numeric_limits<long long>::max()))},
++    {StatsReport::kStatsValueNameBytesSent,
++     static_cast<long long>(std::min<size_t>(info.sent_total_bytes, std::numeric_limits<long long>::max()))},
++    {StatsReport::kStatsValueNamePacketsSent,
++     static_cast<long long>(std::min<size_t>(info.sent_total_packets, std::numeric_limits<long long>::max()))},
++    {StatsReport::kStatsValueNameRtt,
++     static_cast<long long>(std::min<size_t>(info.rtt, std::numeric_limits<long long>::max()))},
++    {StatsReport::kStatsValueNameSendPacketsDiscarded,
++     static_cast<long long>(std::min<size_t>(info.sent_discarded_packets, std::numeric_limits<long long>::max()))},
++    {StatsReport::kStatsValueNameSentPingRequestsTotal,
++     static_cast<long long>(std::min<size_t>(info.sent_ping_requests_total, std::numeric_limits<long long>::max()))},
++    {StatsReport::kStatsValueNameSentPingRequestsBeforeFirstResponse,
++     static_cast<long long>(std::min<size_t>(info.sent_ping_requests_before_first_response, std::numeric_limits<long long>::max()))},
++    {StatsReport::kStatsValueNameSentPingResponses,
++     static_cast<long long>(std::min<size_t>(info.sent_ping_responses, std::numeric_limits<long long>::max()))},
++    {StatsReport::kStatsValueNameRecvPingRequests,
++     static_cast<long long>(std::min<size_t>(info.recv_ping_requests, std::numeric_limits<long long>::max()))},
++    {StatsReport::kStatsValueNameRecvPingResponses,
++     static_cast<long long>(std::min<size_t>(info.recv_ping_responses, std::numeric_limits<long long>::max()))},
++};
++for (const auto& i : int64s)
++  report->AddInt64(i.name, i.value);
++
++report->AddString(StatsReport::kStatsValueNameLocalAddress,
++                  info.local_candidate.address().ToString());
++report->AddString(StatsReport::kStatsValueNameLocalCandidateType,
++                  info.local_candidate.type());
++report->AddString(StatsReport::kStatsValueNameRemoteAddress,
++                  info.remote_candidate.address().ToString());
++report->AddString(StatsReport::kStatsValueNameRemoteCandidateType,
++                  info.remote_candidate.type());
++report->AddString(StatsReport::kStatsValueNameTransportType,
++                  info.local_candidate.protocol());
++report->AddString(StatsReport::kStatsValueNameLocalCandidateRelayProtocol,
++                  info.local_candidate.relay_protocol());
++return report;
+ }
+ 
+ StatsReport* StatsCollector::AddCandidateReport(
+-    const cricket::CandidateStats& candidate_stats,
+-    bool local) {
+-  const auto& candidate = candidate_stats.candidate();
+-  StatsReport::Id id(StatsReport::NewCandidateId(local, candidate.id()));
+-  StatsReport* report = reports_.Find(id);
+-  if (!report) {
+-    report = reports_.InsertNew(id);
+-    report->set_timestamp(stats_gathering_started_);
+-    if (local) {
+-      report->AddString(StatsReport::kStatsValueNameCandidateNetworkType,
+-                        AdapterTypeToStatsType(candidate.network_type()));
+-    }
+-    report->AddString(StatsReport::kStatsValueNameCandidateIPAddress,
+-                      candidate.address().ipaddr().ToString());
+-    report->AddString(StatsReport::kStatsValueNameCandidatePortNumber,
+-                      candidate.address().PortAsString());
+-    report->AddInt(StatsReport::kStatsValueNameCandidatePriority,
+-                   candidate.priority());
+-    report->AddString(StatsReport::kStatsValueNameCandidateType,
+-                      IceCandidateTypeToStatsType(candidate.type()));
+-    report->AddString(StatsReport::kStatsValueNameCandidateTransportType,
+-                      candidate.protocol());
+-  }
++  const cricket::CandidateStats& candidate_stats,
++  bool local) {
++const auto& candidate = candidate_stats.candidate();
++StatsReport::Id id(StatsReport::NewCandidateId(local, candidate.id()));
++StatsReport* report = reports_.Find(id);
++if (!report) {
++  report = reports_.InsertNew(id);
+   report->set_timestamp(stats_gathering_started_);
+-
+-  if (local && candidate_stats.stun_stats().has_value()) {
+-    const auto& stun_stats = candidate_stats.stun_stats().value();
+-    report->AddInt64(StatsReport::kStatsValueNameSentStunKeepaliveRequests,
+-                     stun_stats.stun_binding_requests_sent);
+-    report->AddInt64(StatsReport::kStatsValueNameRecvStunKeepaliveResponses,
+-                     stun_stats.stun_binding_responses_received);
+-    report->AddFloat(StatsReport::kStatsValueNameStunKeepaliveRttTotal,
+-                     stun_stats.stun_binding_rtt_ms_total);
+-    report->AddFloat(StatsReport::kStatsValueNameStunKeepaliveRttSquaredTotal,
+-                     stun_stats.stun_binding_rtt_ms_squared_total);
+-  }
+-
+-  return report;
++  if (local) {
++    report->AddString(StatsReport::kStatsValueNameCandidateNetworkType,
++                      AdapterTypeToStatsType(candidate.network_type()));
++  }
++  report->AddString(StatsReport::kStatsValueNameCandidateIPAddress,
++                    candidate.address().ipaddr().ToString());
++  report->AddString(StatsReport::kStatsValueNameCandidatePortNumber,
++                    candidate.address().PortAsString());
++  report->AddInt(StatsReport::kStatsValueNameCandidatePriority,
++                 candidate.priority());
++  report->AddString(StatsReport::kStatsValueNameCandidateType,
++                    IceCandidateTypeToStatsType(candidate.type()));
++  report->AddString(StatsReport::kStatsValueNameCandidateTransportType,
++                    candidate.protocol());
++}
++report->set_timestamp(stats_gathering_started_);
++if (local && candidate_stats.stun_stats().has_value()) {
++  const auto& stun_stats = candidate_stats.stun_stats().value();
++  report->AddInt64(StatsReport::kStatsValueNameSentStunKeepaliveRequests,
++                   stun_stats.stun_binding_requests_sent);
++  report->AddInt64(StatsReport::kStatsValueNameRecvStunKeepaliveResponses,
++                   stun_stats.stun_binding_responses_received);
++  report->AddFloat(StatsReport::kStatsValueNameStunKeepaliveRttTotal,
++                   stun_stats.stun_binding_rtt_ms_total);
++  report->AddFloat(StatsReport::kStatsValueNameStunKeepaliveRttSquaredTotal,
++                   stun_stats.stun_binding_rtt_ms_squared_total);
++}
++return report;
+ }
+ 
+ std::map<std::string, std::string> StatsCollector::ExtractSessionInfo() {
+diff --git a/rtc_base/system/arch.h b/rtc_base/system/arch.h
+index be2367b85f14d4cd6a7382d5a4b9fefc3dea29f2..9afc18223de91cbb62aa9ece287cb4251b817278 100644
+--- a/rtc_base/system/arch.h
++++ b/rtc_base/system/arch.h
+@@ -19,12 +19,12 @@
+ //   https://www.agner.org/optimize/calling_conventions.pdf
+ //   https://sourceforge.net/p/predef/wiki/Architectures/
+ //   or with gcc, run: "echo | gcc -E -dM -"
+-#if defined(_M_X64) || defined(__x86_64__)
++#if (defined(_M_X64) || defined(__x86_64__)) && !defined(_M_ARM64EC)
+ #define WEBRTC_ARCH_X86_FAMILY
+ #define WEBRTC_ARCH_X86_64
+ #define WEBRTC_ARCH_64_BITS
+ #define WEBRTC_ARCH_LITTLE_ENDIAN
+-#elif defined(_M_ARM64) || defined(__aarch64__)
++#elif defined(_M_ARM64) || defined(__aarch64__) || defined(_M_ARM64EC)
+ #define WEBRTC_ARCH_ARM_FAMILY
+ #define WEBRTC_ARCH_64_BITS
+ #define WEBRTC_ARCH_LITTLE_ENDIAN

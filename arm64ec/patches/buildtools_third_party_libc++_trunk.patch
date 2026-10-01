@@ -1,0 +1,26 @@
+diff --git a/include/__threading_support b/include/__threading_support
+index 8f1efb7854b72ce2f8b43d267c856b798281a8a2..1deda550b0a78846f33860503c0a51f666309b6e 100644
+--- a/include/__threading_support
++++ b/include/__threading_support
+@@ -125,7 +125,7 @@ typedef void* __libcpp_mutex_t;
+ 
+ #if defined(_M_IX86) || defined(__i386__) || defined(_M_ARM) || defined(__arm__)
+ typedef void* __libcpp_recursive_mutex_t[6];
+-#elif defined(_M_AMD64) || defined(__x86_64__) || defined(_M_ARM64) || defined(__aarch64__)
++#elif defined(_M_AMD64) || defined(__x86_64__) || defined(_M_ARM64) || defined(__aarch64__) || defined(_M_ARM64EC)
+ typedef void* __libcpp_recursive_mutex_t[5];
+ #else
+ # error Unsupported architecture
+diff --git a/src/include/ryu/d2s_intrinsics.h b/src/include/ryu/d2s_intrinsics.h
+index 762763f9b92cf392dc8afa3b2db6a7aaacab5fd2..6be32198d71a83c1d9b6a318a9e402d7041f5611 100644
+--- a/src/include/ryu/d2s_intrinsics.h
++++ b/src/include/ryu/d2s_intrinsics.h
+@@ -49,7 +49,7 @@
+ 
+ _LIBCPP_BEGIN_NAMESPACE_STD
+ 
+-#if defined(_M_X64) && defined(_MSC_VER)
++#if defined(_M_X64) && defined(_MSC_VER) && !defined(_M_ARM64EC)
+ #define _LIBCPP_INTRINSIC128 1
+ [[nodiscard]] _LIBCPP_HIDE_FROM_ABI inline uint64_t __ryu_umul128(const uint64_t __a, const uint64_t __b, uint64_t* const __productHi) {
+   return _umul128(__a, __b, __productHi);

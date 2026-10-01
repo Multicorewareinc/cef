@@ -165,7 +165,9 @@ int main(int argc, char* argv[]) {
 
   CefSettings settings;
 
-#if !defined(CEF_USE_SANDBOX)
+#if !defined(CEF_USE_SANDBOX) || defined(_M_ARM64EC)
+  // The sandboxed renderer crashes on ARM64EC. GN defines CEF_USE_SANDBOX for
+  // this target, so the sandbox has to be disabled explicitly here.
   settings.no_sandbox = true;
 #endif
 

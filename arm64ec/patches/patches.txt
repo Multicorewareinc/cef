@@ -1,0 +1,26 @@
+# <repo dir relative to chromium/src> <patch file>
+. chromium_src.patch
+buildtools/third_party/libc++/trunk buildtools_third_party_libc++_trunk.patch
+net/third_party/quiche/src net_third_party_quiche_src.patch
+third_party/angle third_party_angle.patch
+third_party/boringssl/src third_party_boringssl_src.patch
+third_party/dawn third_party_dawn.patch
+third_party/eigen3/src third_party_eigen3_src.patch
+third_party/flatbuffers/src third_party_flatbuffers_src.patch
+third_party/freetype/src third_party_freetype_src.patch
+third_party/gemmlowp/src third_party_gemmlowp_src.patch
+third_party/highway/src third_party_highway_src.patch
+third_party/icu third_party_icu.patch
+third_party/libgav1/src third_party_libgav1_src.patch
+third_party/libyuv third_party_libyuv.patch
+third_party/pdfium third_party_pdfium.patch
+third_party/perfetto third_party_perfetto.patch
+third_party/ruy/src third_party_ruy_src.patch
+third_party/skia third_party_skia.patch
+third_party/snappy/src third_party_snappy_src.patch
+third_party/swiftshader third_party_swiftshader.patch
+third_party/tflite/src third_party_tflite_src.patch
+third_party/vulkan-deps/vulkan-validation-layers/src third_party_vulkan-deps_vulkan-validation-layers_src.patch
+third_party/webrtc third_party_webrtc.patch
+third_party/wuffs/src third_party_wuffs_src.patch
+v8 v8.patch

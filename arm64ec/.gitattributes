@@ -1,0 +1,6 @@
+# Keep the patches byte-exact: one contains a binary hunk (crashpad
+# capture_context_win_arm64ec.obj) and line endings must not be converted.
+*.patch binary
+patches.txt text eol=lf
+# cmd.exe mis-parses labels in batch files with LF line endings.
+*.bat text eol=crlf
