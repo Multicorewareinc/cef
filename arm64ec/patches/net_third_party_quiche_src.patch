@@ -1,0 +1,32 @@
+diff --git a/quiche/common/platform/default/quiche_platform_impl/quiche_prefetch_impl.h b/quiche/common/platform/default/quiche_platform_impl/quiche_prefetch_impl.h
+index 89454817d877565d591ecb136a44e5ed87f1be54..21772207776cfb41499fd71392207785b16b0bb0 100644
+--- a/quiche/common/platform/default/quiche_platform_impl/quiche_prefetch_impl.h
++++ b/quiche/common/platform/default/quiche_platform_impl/quiche_prefetch_impl.h
+@@ -13,7 +13,7 @@ namespace quiche {
+ 
+ inline void QuichePrefetchT0Impl(const void* addr) {
+ #if !defined(DISABLE_BUILTIN_PREFETCH)
+-#if defined(__GNUC__) || (defined(_M_ARM64) && defined(__clang__))
++#if defined(__GNUC__) || (defined(_M_ARM64) || defined(_M_ARM64EC) && defined(__clang__))
+   __builtin_prefetch(addr, 0, 3);
+ #elif defined(_MSC_VER)
+   _mm_prefetch(reinterpret_cast<const char*>(addr), _MM_HINT_T0);
+diff --git a/quiche/quic/core/quic_interval_deque.h b/quiche/quic/core/quic_interval_deque.h
+index ed13e7a44df61dbe72c48de568961b5b50ab42f4..b49853069a9790d805b790e9fee7ace7ce83e07f 100644
+--- a/quiche/quic/core/quic_interval_deque.h
++++ b/quiche/quic/core/quic_interval_deque.h
+@@ -198,12 +198,12 @@ class QUIC_NO_EXPORT QuicIntervalDeque {
+     Iterator operator+(difference_type amount) const {
+       Iterator copy = *this;
+       copy.index_ += amount;
+-      QUICHE_DCHECK(copy.index_ < copy.deque_->size());
++      QUICHE_DCHECK(copy.index_ < copy.deque_->Size());
+       return copy;
+     }
+     Iterator& operator+=(difference_type amount) {
+       index_ += amount;
+-      QUICHE_DCHECK(index_ < deque_->size());
++      QUICHE_DCHECK(index_ < deque_->Size());
+       return *this;
+     }
+     difference_type operator-(const Iterator& rhs) const {

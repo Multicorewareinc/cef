@@ -552,6 +552,11 @@ def GetAllPlatformConfigs(build_args):
   # Merged args without validation.
   args = GetMergedArgs(build_args)
 
+  # Build the arm64 configurations as ARM64EC.
+  if platform == 'windows' and os.environ.get('CEF_ENABLE_ARM64') == '1' and \
+     os.environ.get('CEF_ENABLE_ARM64EC') == '1':
+    args['cef_enable_arm64ec'] = True
+
   create_debug = True
 
   # Don't create debug directories for asan builds.
@@ -576,8 +581,9 @@ def GetAllPlatformConfigs(build_args):
   elif platform in ('windows', 'mac'):
     if machine == 'amd64' or os.environ.get('CEF_ENABLE_AMD64', '') == '1':
       supported_cpus.append('x64')
-      if platform == 'windows':
-        supported_cpus.append('x86')
+      # x86 configurations are not generated for ARM64EC builds.
+      # if platform == 'windows':
+      #   supported_cpus.append('x86')
     if machine == 'arm64' or os.environ.get('CEF_ENABLE_ARM64', '') == '1':
       supported_cpus.append('arm64')
   else:
@@ -585,7 +591,6 @@ def GetAllPlatformConfigs(build_args):
 
   if len(supported_cpus) == 0:
     raise Exception('No supported architectures')
-
   for cpu in supported_cpus:
     if create_debug:
       result['Debug_GN_' + cpu] = GetConfigArgs(args, True, cpu)

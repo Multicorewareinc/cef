@@ -1,0 +1,100 @@
+diff --git a/ruy/denormal.cc b/ruy/denormal.cc
+index 35bb7390dcd8f604c2c3093aae9a6424a6185ef4..cb9e52be3601c9f94473eeccfc4bdfc68c39c3a4 100644
+--- a/ruy/denormal.cc
++++ b/ruy/denormal.cc
+@@ -21,8 +21,10 @@ limitations under the License.
+ // helper class to suppress floating-point denormal values.
+ 
+ /* SSE-specific headers */
+-#if defined(__SSE__) || defined(__x86_64__) || defined(_M_X64) || \
+-    (defined(_M_IX86_FP) && _M_IX86_FP >= 1)
++#if (defined(__SSE__) || defined(__x86_64__) || defined(_M_X64) || \
++     (defined(_M_IX86_FP) && _M_IX86_FP >= 1)) && \
++    !defined(_M_ARM64EC)
++
+ #include <xmmintrin.h>
+ #endif
+ 
+@@ -35,13 +37,15 @@ namespace ruy {
+ namespace {
+ inline struct fpu_state get_fpu_state() {
+   struct fpu_state state = {};
+-#if defined(__SSE__) || defined(__x86_64__) || defined(_M_X64) || \
+-    (defined(_M_IX86_FP) && _M_IX86_FP >= 1)
++#if (defined(__SSE__) || defined(__x86_64__) || defined(_M_X64) || \
++  (defined(_M_IX86_FP) && _M_IX86_FP >= 1)) && \
++ !defined(_M_ARM64EC)
++
+   state.mxcsr = static_cast<std::uint32_t>(_mm_getcsr());
+ #elif defined(_MSC_VER) && defined(_M_ARM)
+   state.fpscr =
+       static_cast<std::uint32_t>(_MoveFromCoprocessor(10, 7, 1, 0, 0));
+-#elif defined(_MSC_VER) && defined(_M_ARM64)
++#elif defined(_MSC_VER) && (defined(_M_ARM64) || defined(_M_ARM64EC))
+   state.fpcr = static_cast<std::uint64_t>(_ReadStatusReg(0x5A20));
+ #elif defined(__GNUC__) && defined(__arm__) && defined(__ARM_FP) && \
+     (__ARM_FP != 0)
+@@ -53,12 +57,13 @@ inline struct fpu_state get_fpu_state() {
+ }
+ 
+ inline void set_fpu_state(const struct fpu_state state) {
+-#if defined(__SSE__) || defined(__x86_64__) || defined(_M_X64) || \
+-    (defined(_M_IX86_FP) && _M_IX86_FP >= 1)
++#if (defined(__SSE__) || defined(__x86_64__) || defined(_M_X64) || \
++  (defined(_M_IX86_FP) && _M_IX86_FP >= 1)) && \
++ !defined(_M_ARM64EC)
+   _mm_setcsr(static_cast<unsigned int>(state.mxcsr));
+ #elif defined(_MSC_VER) && defined(_M_ARM)
+   _MoveToCoprocessor(static_cast<int>(state.fpscr), 10, 7, 1, 0, 0);
+-#elif defined(_MSC_VER) && defined(_M_ARM64)
++#elif defined(_MSC_VER) && (defined(_M_ARM64) || defined(_M_ARM64EC))
+   _WriteStatusReg(0x5A20, static_cast<__int64>(state.fpcr));
+ #elif defined(__GNUC__) && defined(__arm__) && defined(__ARM_FP) && \
+     (__ARM_FP != 0)
+@@ -71,14 +76,16 @@ inline void set_fpu_state(const struct fpu_state state) {
+ }
+ 
+ inline void disable_fpu_denormals() {
+-#if defined(__SSE__) || defined(__x86_64__) || defined(_M_X64) || \
+-    (defined(_M_IX86_FP) && _M_IX86_FP >= 1)
++#if (defined(__SSE__) || defined(__x86_64__) || defined(_M_X64) || \
++  (defined(_M_IX86_FP) && _M_IX86_FP >= 1)) && \
++ !defined(_M_ARM64EC)
++
+   _mm_setcsr(_mm_getcsr() | 0x8040);
+ #elif defined(_MSC_VER) && defined(_M_ARM)
+   int fpscr = _MoveFromCoprocessor(10, 7, 1, 0, 0);
+   fpscr |= 0x1000000;
+   _MoveToCoprocessor(fpscr, 10, 7, 1, 0, 0);
+-#elif defined(_MSC_VER) && defined(_M_ARM64)
++#elif defined(_MSC_VER) && (defined(_M_ARM64) || defined(_M_ARM64EC))
+   __int64 fpcr = _ReadStatusReg(0x5A20);
+   fpcr |= 0x1080000;
+   _WriteStatusReg(0x5A20, fpcr);
+diff --git a/ruy/denormal.h b/ruy/denormal.h
+index e5b836cf677a15e48838bda0633a54a7532b0a1a..7afdcd08f097c357d3be1e2a1c1993b4bc913884 100644
+--- a/ruy/denormal.h
++++ b/ruy/denormal.h
+@@ -22,15 +22,18 @@ namespace ruy {
+ // pthreadpool/src/threadpool-utils.h that's not exposed by the pthreadpool
+ // library (https://github.com/Maratyszcza/pthreadpool).
+ struct fpu_state {
+-#if defined(__SSE__) || defined(__x86_64__) || defined(_M_X64) || \
+-    (defined(_M_IX86_FP) && _M_IX86_FP >= 1)
++#if (defined(__SSE__) || defined(__x86_64__) || defined(_M_X64) || \
++  (defined(_M_IX86_FP) && _M_IX86_FP >= 1)) && \
++ !defined(_M_ARM64EC)
++
+   std::uint32_t mxcsr;
+ #elif defined(__GNUC__) && defined(__arm__) && defined(__ARM_FP) && \
+         (__ARM_FP != 0) ||                                          \
+     defined(_MSC_VER) && defined(_M_ARM)
+   std::uint32_t fpscr;
+-#elif defined(__GNUC__) && defined(__aarch64__) || \
+-    defined(_MSC_VER) && defined(_M_ARM64)
++#elif (defined(__GNUC__) && defined(__aarch64__)) || \
++  (defined(_MSC_VER) && (defined(_M_ARM64) || defined(_M_ARM64EC)))
++
+   std::uint64_t fpcr;
+ #endif
+ };

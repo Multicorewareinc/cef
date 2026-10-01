@@ -1,0 +1,124 @@
+diff --git a/layers/synchronization_validation.cpp b/layers/synchronization_validation.cpp
+index 4622d8c1dd26ce5fe020cfdd8451e8abfe34b737..8085b720d90d1635d781cd5fa8eddf848e7bf660 100644
+--- a/layers/synchronization_validation.cpp
++++ b/layers/synchronization_validation.cpp
+@@ -7050,8 +7050,6 @@ struct QueueSubmitCmdState {
+         : logger(&parent_log), signaled(parent_semaphores) {}
+ };
+ 
+-template <>
+-thread_local layer_data::optional<QueueSubmitCmdState> layer_data::TlsGuard<QueueSubmitCmdState>::payload_{};
+ 
+ bool SyncValidator::PreCallValidateQueueSubmit(VkQueue queue, uint32_t submitCount, const VkSubmitInfo *pSubmits,
+                                                VkFence fence) const {
+diff --git a/layers/vk_layer_data.h b/layers/vk_layer_data.h
+index 5c1893947e9569dddd57131013e640d9a3f18aec..f2de8a706c911bd1cc7b9934738a7bc1d219f7cd 100644
+--- a/layers/vk_layer_data.h
++++ b/layers/vk_layer_data.h
+@@ -32,6 +32,7 @@
+ #include <algorithm>
+ #include <iterator>
+ #include <type_traits>
++#include <mutex>
+ 
+ #ifdef USE_ROBIN_HOOD_HASHING
+ #include "robin_hood.h"
+@@ -921,50 +922,85 @@ using base_type =
+ //        * Destruct
+ //           * INIT -> RESET
+ 
++
+ struct TlsGuardPersist {};
+ template <typename T>
+ class TlsGuard {
+   public:
+-    // For use on inital references -- Validate phase
+     template <typename... Args>
+     TlsGuard(bool *skip, Args &&...args) : skip_(skip), persist_(false) {
+-        // Record phase calls are required to clean up payload
++#if defined(_M_ARM64EC) || defined(_M_ARM64)
++        std::lock_guard<std::mutex> lock(mutex_);
++#endif
+         assert(!payload_);
+         payload_.emplace(std::forward<Args>(args)...);
+     }
+-    // For use on non-terminal persistent references (PreRecord phase IFF PostRecord is also present.
+-    TlsGuard(const TlsGuardPersist &) : skip_(nullptr), persist_(true) { assert(payload_); }
+-    // For use on terminal persistent references
+-    // Validate phase calls are required to setup payload
+-    // PreCallRecord calls are required to preserve (persist_) payload, if PostCallRecord calls will use
+-    TlsGuard() : skip_(nullptr), persist_(false) { assert(payload_); }
+-    ~TlsGuard() {
++    TlsGuard(const TlsGuardPersist &) : skip_(nullptr), persist_(true) {
++#if defined(_M_ARM64EC) || defined(_M_ARM64)
++        std::lock_guard<std::mutex> lock(mutex_);
++#endif
+         assert(payload_);
++    }
++    TlsGuard() : skip_(nullptr), persist_(false) {
++#if defined(_M_ARM64EC) || defined(_M_ARM64)
++        std::lock_guard<std::mutex> lock(mutex_);
++#endif
++        assert(payload_);
++    }
++    ~TlsGuard() {
++#if defined(_M_ARM64EC) || defined(_M_ARM64)
++        std::lock_guard<std::mutex> lock(mutex_);
++#endif
+         if (!persist_ && (!skip_ || *skip_)) payload_.reset();
+     }
+ 
+     T &operator*() & {
++#if defined(_M_ARM64EC) || defined(_M_ARM64)
++        std::lock_guard<std::mutex> lock(mutex_);
++#endif
+         assert(payload_);
+         return *payload_;
+     }
+     const T &operator*() const & {
++#if defined(_M_ARM64EC) || defined(_M_ARM64)
++        std::lock_guard<std::mutex> lock(mutex_);
++#endif
+         assert(payload_);
+         return *payload_;
+     }
+     T &&operator*() && {
++#if defined(_M_ARM64EC) || defined(_M_ARM64)
++        std::lock_guard<std::mutex> lock(mutex_);
++#endif
+         assert(payload_);
+         return std::move(*payload_);
+     }
+-    T *operator->() { return &(*payload_); }
++    T *operator->() {
++#if defined(_M_ARM64EC) || defined(_M_ARM64)
++        std::lock_guard<std::mutex> lock(mutex_);
++#endif
++        return &(*payload_);
++    }
+ 
+   private:
++#if defined(_M_ARM64EC) || defined(_M_ARM64)
++    static optional<T> payload_;
++    static std::mutex mutex_;
++#else
+     thread_local static optional<T> payload_;
++#endif
+     bool *skip_;
+     bool persist_;
+ };
+ 
+-template <typename T>
+-thread_local optional<T> TlsGuard<T>::payload_;
+-
++#if defined(_M_ARM64EC) || defined(_M_ARM64)
++    template <typename T>
++    optional<T> TlsGuard<T>::payload_;
++    template <typename T>
++    std::mutex TlsGuard<T>::mutex_;
++#else
++    template <typename T>
++    thread_local optional<T> TlsGuard<T>::payload_;
++#endif
+ }  // namespace layer_data
+ #endif  // LAYER_DATA_H

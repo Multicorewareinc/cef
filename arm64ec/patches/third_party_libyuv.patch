@@ -1,0 +1,286 @@
+diff --git a/include/libyuv/compare_row.h b/include/libyuv/compare_row.h
+index d8e82d721b3e2e2bb51e7d3554044cb44151306b..2055a75401b32273775f2882ec441bce821b679d 100644
+--- a/include/libyuv/compare_row.h
++++ b/include/libyuv/compare_row.h
+@@ -47,7 +47,8 @@ extern "C" {
+ 
+ // The following are available for Visual C and GCC:
+ #if !defined(LIBYUV_DISABLE_X86) && \
+-    (defined(__x86_64__) || defined(__i386__) || defined(_M_IX86))
++    (defined(__x86_64__) || defined(__i386__) || defined(_M_IX86)) && \
++    !defined(_M_ARM64EC)
+ #define HAS_HASHDJB2_SSE41
+ #define HAS_SUMSQUAREERROR_SSE2
+ #define HAS_HAMMINGDISTANCE_SSE42
+@@ -62,19 +63,22 @@ extern "C" {
+ #endif
+ 
+ // The following are available for GCC and clangcl:
+-#if !defined(LIBYUV_DISABLE_X86) && (defined(__x86_64__) || defined(__i386__))
++#if !defined(LIBYUV_DISABLE_X86) && \
++    (defined(__x86_64__) || defined(__i386__)) && \
++    !defined(_M_ARM64EC)
+ #define HAS_HAMMINGDISTANCE_SSSE3
+ #endif
+ 
+ // The following are available for GCC and clangcl:
+ #if !defined(LIBYUV_DISABLE_X86) && defined(CLANG_HAS_AVX2) && \
+-    (defined(__x86_64__) || defined(__i386__))
++    (defined(__x86_64__) || defined(__i386__)) && \
++    !defined(_M_ARM64EC)
+ #define HAS_HAMMINGDISTANCE_AVX2
+ #endif
+ 
+ // The following are available for Neon:
+ #if !defined(LIBYUV_DISABLE_NEON) && \
+-    (defined(__ARM_NEON__) || defined(LIBYUV_NEON) || defined(__aarch64__))
++    (defined(__ARM_NEON__) || defined(LIBYUV_NEON) || defined(__aarch64__) ||defined(_M_ARM64EC))
+ #define HAS_SUMSQUAREERROR_NEON
+ #define HAS_HAMMINGDISTANCE_NEON
+ #endif
+diff --git a/include/libyuv/rotate_row.h b/include/libyuv/rotate_row.h
+index aa8528a9251d2f204385fad71b4153d96937a775..163d7c6e92350bd64c7bf5c29c59ead6c5af2114 100644
+--- a/include/libyuv/rotate_row.h
++++ b/include/libyuv/rotate_row.h
+@@ -40,18 +40,19 @@ extern "C" {
+ #endif
+ 
+ // The following are available for GCC 32 or 64 bit:
+-#if !defined(LIBYUV_DISABLE_X86) && (defined(__i386__) || defined(__x86_64__))
++#if !defined(LIBYUV_DISABLE_X86) && \
++    (defined(__i386__) || (defined(__x86_64__) && !defined(_M_ARM64EC)))
+ #define HAS_TRANSPOSEWX8_SSSE3
+ #endif
+ 
+ // The following are available for 64 bit GCC:
+-#if !defined(LIBYUV_DISABLE_X86) && defined(__x86_64__)
++#if !defined(LIBYUV_DISABLE_X86) && defined(__x86_64__) && !defined(_M_ARM64EC)
+ #define HAS_TRANSPOSEWX8_FAST_SSSE3
+ #define HAS_TRANSPOSEUVWX8_SSE2
+ #endif
+ 
+ #if !defined(LIBYUV_DISABLE_NEON) && \
+-    (defined(__ARM_NEON__) || defined(LIBYUV_NEON) || defined(__aarch64__))
++    (defined(__ARM_NEON__) || defined(LIBYUV_NEON) || defined(__aarch64__) || defined(_M_ARM64EC))
+ #define HAS_TRANSPOSEWX8_NEON
+ #define HAS_TRANSPOSEUVWX8_NEON
+ #endif
+diff --git a/include/libyuv/row.h b/include/libyuv/row.h
+index f15b58fabf43dd8243ab6f633e747a3ba0322f1a..a9a674d4521ee0edefb1e880c03314fe213c9eec 100644
+--- a/include/libyuv/row.h
++++ b/include/libyuv/row.h
+@@ -20,8 +20,9 @@ namespace libyuv {
+ extern "C" {
+ #endif
+ 
+-#if defined(__pnacl__) || defined(__CLR_VER) ||            \
+-    (defined(__native_client__) && defined(__x86_64__)) || \
++#if defined(__pnacl__) || defined(__CLR_VER) ||                     \
++    (defined(__native_client__) && defined(__x86_64__)) ||          \
++    defined(_M_ARM64EC) ||                                          \
+     (defined(__i386__) && !defined(__SSE__) && !defined(__clang__))
+ #define LIBYUV_DISABLE_X86
+ #endif
+diff --git a/include/libyuv/scale_row.h b/include/libyuv/scale_row.h
+index 5c474b0ced245b0558a03fd047722a1c172b1a7a..6802fb480dfd43e9c739cc4feb82d7aaad6049a0 100644
+--- a/include/libyuv/scale_row.h
++++ b/include/libyuv/scale_row.h
+@@ -55,7 +55,7 @@ extern "C" {
+ 
+ // The following are available on all x86 platforms:
+ #if !defined(LIBYUV_DISABLE_X86) && \
+-    (defined(_M_IX86) || defined(__x86_64__) || defined(__i386__))
++    ( (defined(_M_IX86) || defined(__x86_64__) || defined(__i386__)) && !defined(_M_ARM64EC) )
+ #define HAS_FIXEDDIV1_X86
+ #define HAS_FIXEDDIV_X86
+ #define HAS_SCALEADDROW_SSE2
+@@ -74,7 +74,8 @@ extern "C" {
+ 
+ // The following are available for gcc/clang x86 platforms:
+ // TODO(fbarchard): Port to Visual C
+-#if !defined(LIBYUV_DISABLE_X86) && (defined(__x86_64__) || defined(__i386__))
++#if !defined(LIBYUV_DISABLE_X86) && \
++    ( (defined(__x86_64__) || defined(__i386__)) && !defined(_M_ARM64EC) )
+ #define HAS_SCALEUVROWDOWN2BOX_SSSE3
+ #define HAS_SCALEROWUP2LINEAR_SSE2
+ #define HAS_SCALEROWUP2LINEAR_SSSE3
+@@ -93,8 +94,8 @@ extern "C" {
+ // The following are available for gcc/clang x86 platforms, but
+ // require clang 3.4 or gcc 4.7.
+ // TODO(fbarchard): Port to Visual C
+-#if !defined(LIBYUV_DISABLE_X86) &&               \
+-    (defined(__x86_64__) || defined(__i386__)) && \
++#if !defined(LIBYUV_DISABLE_X86) && \
++    ( (defined(__x86_64__) || defined(__i386__)) && !defined(_M_ARM64EC) ) && \
+     (defined(CLANG_HAS_AVX2) || defined(GCC_HAS_AVX2))
+ #define HAS_SCALEUVROWDOWN2BOX_AVX2
+ #define HAS_SCALEROWUP2LINEAR_AVX2
+@@ -114,7 +115,8 @@ extern "C" {
+ // The code supports NaCL but requires a new compiler and validator.
+ #if !defined(LIBYUV_DISABLE_X86) &&                          \
+     (defined(VISUALC_HAS_AVX2) || defined(CLANG_HAS_AVX2) || \
+-     defined(GCC_HAS_AVX2))
++     defined(GCC_HAS_AVX2)) &&                               \
++    !defined(_M_ARM64EC)
+ #define HAS_SCALEADDROW_AVX2
+ #define HAS_SCALEROWDOWN2_AVX2
+ #define HAS_SCALEROWDOWN4_AVX2
+@@ -122,7 +124,7 @@ extern "C" {
+ 
+ // The following are available on Neon platforms:
+ #if !defined(LIBYUV_DISABLE_NEON) && \
+-    (defined(__ARM_NEON__) || defined(LIBYUV_NEON) || defined(__aarch64__))
++    (defined(__ARM_NEON__) || defined(LIBYUV_NEON) || defined(__aarch64__) || defined(_M_ARM64EC))
+ #define HAS_SCALEADDROW_NEON
+ #define HAS_SCALEARGBCOLS_NEON
+ #define HAS_SCALEARGBFILTERCOLS_NEON
+diff --git a/source/compare_gcc.cc b/source/compare_gcc.cc
+index b834b42ac414a193511490f24bb0fbc857a87f02..9fea38dca0f40a1daa690fc4ea15e1c8406c8322 100644
+--- a/source/compare_gcc.cc
++++ b/source/compare_gcc.cc
+@@ -19,7 +19,7 @@ extern "C" {
+ #endif
+ 
+ // This module is for GCC x86 and x64.
+-#if !defined(LIBYUV_DISABLE_X86) && (defined(__x86_64__) || defined(__i386__))
++#if !defined(LIBYUV_DISABLE_X86) && (defined(__x86_64__) || defined(__i386__)) && !defined(_M_ARM64EC)
+ 
+ #if defined(__x86_64__)
+ uint32_t HammingDistance_SSE42(const uint8_t* src_a,
+diff --git a/source/compare_neon64.cc b/source/compare_neon64.cc
+index 70fb9b9143f3be3bd2745f63f78aa459af2c364f..82b8964bf4447ff71768cecf4eb321cd16672197 100644
+--- a/source/compare_neon64.cc
++++ b/source/compare_neon64.cc
+@@ -18,7 +18,7 @@ namespace libyuv {
+ extern "C" {
+ #endif
+ 
+-#if !defined(LIBYUV_DISABLE_NEON) && defined(__aarch64__)
++#if !defined(LIBYUV_DISABLE_NEON) && (defined(__aarch64__) || defined(_M_ARM64EC))
+ 
+ // 256 bits at a time
+ // uses short accumulator which restricts count to 131 KB
+diff --git a/source/cpu_id.cc b/source/cpu_id.cc
+index 56fe60e493a7baa6ec3cb864697e1519f68f4d5d..091bfa86230b6b9bc5c7379b5463649de905651d 100644
+--- a/source/cpu_id.cc
++++ b/source/cpu_id.cc
+@@ -13,10 +13,11 @@
+ #if defined(_MSC_VER)
+ #include <intrin.h>  // For __cpuidex()
+ #endif
+-#if !defined(__pnacl__) && !defined(__CLR_VER) &&                           \
++#if !defined(__pnacl__) && !defined(__CLR_VER) && \
+     !defined(__native_client__) && (defined(_M_IX86) || defined(_M_X64)) && \
++    !defined(_M_ARM64EC) && \
+     defined(_MSC_FULL_VER) && (_MSC_FULL_VER >= 160040219)
+-#include <immintrin.h>  // For _xgetbv()
++#include <immintrin.h>
+ #endif
+ 
+ // For ArmCpuCaps() but unittested on all platforms
+@@ -42,9 +43,8 @@ LIBYUV_API int cpu_info_ = 0;
+ 
+ // TODO(fbarchard): Consider using int for cpuid so casting is not needed.
+ // Low level cpuid for X86.
+-#if (defined(_M_IX86) || defined(_M_X64) || defined(__i386__) || \
+-     defined(__x86_64__)) &&                                     \
+-    !defined(__pnacl__) && !defined(__CLR_VER)
++#if (defined(_M_IX86) || defined(_M_X64) || defined(__i386__) || defined(__x86_64__)) && \
++    !defined(_M_ARM64EC) && !defined(__pnacl__) && !defined(__CLR_VER)
+ LIBYUV_API
+ void CpuId(int info_eax, int info_ecx, int* cpu_info) {
+ #if defined(_MSC_VER)
+@@ -111,8 +111,8 @@ void CpuId(int eax, int ecx, int* cpu_info) {
+ #if defined(_M_IX86) && (_MSC_VER < 1900)
+ #pragma optimize("g", off)
+ #endif
+-#if (defined(_M_IX86) || defined(_M_X64) || defined(__i386__) || \
+-     defined(__x86_64__)) &&                                     \
++#if !defined(_M_ARM64EC) && \
++    (defined(_M_IX86) || defined(_M_X64) || defined(__i386__) || defined(__x86_64__)) && \
+     !defined(__pnacl__) && !defined(__CLR_VER) && !defined(__native_client__)
+ // X86 CPUs have xgetbv to detect OS saves high parts of ymm registers.
+ int GetXCR0() {
+@@ -259,7 +259,7 @@ static SAFEBUFFERS int GetCpuFlags(void) {
+   cpu_info = LoongarchCpuCaps();
+   cpu_info |= kCpuHasLOONGARCH;
+ #endif
+-#if defined(__arm__) || defined(__aarch64__)
++#if defined(__arm__) || defined(__aarch64__) || defined(_M_ARM64EC)
+ // gcc -mfpu=neon defines __ARM_NEON__
+ // __ARM_NEON__ generates code that requires Neon.  NaCL also requires Neon.
+ // For Linux, /proc/cpuinfo can be tested but without that assume Neon.
+@@ -269,7 +269,7 @@ static SAFEBUFFERS int GetCpuFlags(void) {
+ // flag in it.
+ // So for aarch64, neon enabling is hard coded here.
+ #endif
+-#if defined(__aarch64__)
++#if defined(__aarch64__) || defined(_M_ARM64EC)
+   cpu_info = kCpuHasNEON;
+ #else
+   // Linux arm parse text file for neon detect.
+diff --git a/source/rotate_gcc.cc b/source/rotate_gcc.cc
+index 1a3f8cbbdadca2a0809fb7441119a488be715759..7565aef201c9d2002b135511095a9880d8286b1d 100644
+--- a/source/rotate_gcc.cc
++++ b/source/rotate_gcc.cc
+@@ -17,7 +17,7 @@ extern "C" {
+ #endif
+ 
+ // This module is for GCC x86 and x64.
+-#if !defined(LIBYUV_DISABLE_X86) && (defined(__x86_64__) || defined(__i386__))
++#if !defined(LIBYUV_DISABLE_X86) && (defined(__x86_64__) || defined(__i386__)) && !defined(_M_ARM64EC)
+ 
+ // Transpose 8x8. 32 or 64 bit, but not NaCL for 64 bit.
+ #if defined(HAS_TRANSPOSEWX8_SSSE3)
+diff --git a/source/rotate_neon64.cc b/source/rotate_neon64.cc
+index 43c1581731d2c9347b7c56b775dce86777c9b5f4..79288ebb98bafa77e84ca99044878605c69758b4 100644
+--- a/source/rotate_neon64.cc
++++ b/source/rotate_neon64.cc
+@@ -19,7 +19,7 @@ extern "C" {
+ #endif
+ 
+ // This module is for GCC Neon armv8 64 bit.
+-#if !defined(LIBYUV_DISABLE_NEON) && defined(__aarch64__)
++#if !defined(LIBYUV_DISABLE_NEON) && (defined(__aarch64__) || defined(_M_ARM64EC))
+ 
+ static const uvec8 kVTbl4x4Transpose = {0, 4, 8,  12, 1, 5, 9,  13,
+                                         2, 6, 10, 14, 3, 7, 11, 15};
+diff --git a/source/row_gcc.cc b/source/row_gcc.cc
+index 85376e4b007b4fbb0927e7d5b0c3872e4938c705..4cc32082e1c55f1aa87352aab1f16d9763b945e5 100644
+--- a/source/row_gcc.cc
++++ b/source/row_gcc.cc
+@@ -15,7 +15,7 @@ extern "C" {
+ #endif
+ 
+ // This module is for GCC x86 and x64.
+-#if !defined(LIBYUV_DISABLE_X86) && (defined(__x86_64__) || defined(__i386__))
++#if !defined(LIBYUV_DISABLE_X86) && (defined(__x86_64__) || defined(__i386__)) && !defined(_M_ARM64EC)
+ 
+ #if defined(HAS_ARGBTOYROW_SSSE3) || defined(HAS_ARGBGRAYROW_SSSE3)
+ 
+diff --git a/source/scale_gcc.cc b/source/scale_gcc.cc
+index d827c0e7f5278829b233bb4594c8c931c6673685..61e7ca08fbb5750fef6cc89d0589bb84e1831499 100644
+--- a/source/scale_gcc.cc
++++ b/source/scale_gcc.cc
+@@ -17,7 +17,7 @@ extern "C" {
+ #endif
+ 
+ // This module is for GCC x86 and x64.
+-#if !defined(LIBYUV_DISABLE_X86) && (defined(__x86_64__) || defined(__i386__))
++#if !defined(LIBYUV_DISABLE_X86) && (defined(__x86_64__) || defined(__i386__)) && !defined(_M_ARM64EC)
+ 
+ // Offsets for source bytes 0 to 9
+ static const uvec8 kShuf0 = {0,   1,   3,   4,   5,   7,   8,   9,
+diff --git a/source/scale_neon64.cc b/source/scale_neon64.cc
+index 9f9636e646d3d0cfe571b48bab2e812f54522bf4..b115aadb208681833451db8c67f48dc75019fac8 100644
+--- a/source/scale_neon64.cc
++++ b/source/scale_neon64.cc
+@@ -18,7 +18,7 @@ extern "C" {
+ #endif
+ 
+ // This module is for GCC Neon armv8 64 bit.
+-#if !defined(LIBYUV_DISABLE_NEON) && defined(__aarch64__)
++#if !defined(LIBYUV_DISABLE_NEON) && (defined(__aarch64__) || defined(_M_ARM64EC))
+ 
+ // Read 32x1 throw away even pixels, and write 16x1.
+ void ScaleRowDown2_NEON(const uint8_t* src_ptr,

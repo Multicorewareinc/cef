@@ -1,0 +1,126 @@
+diff --git a/src/Device/Blitter.cpp b/src/Device/Blitter.cpp
+index 1c18a231de3c840862048474db22ea0cd2eb950b..32c7710260d11ce51c26e937dfc888fa9e7918f9 100644
+--- a/src/Device/Blitter.cpp
++++ b/src/Device/Blitter.cpp
+@@ -25,7 +25,7 @@
+ 
+ #include <utility>
+ 
+-#if defined(__i386__) || defined(__x86_64__)
++#if (defined(__i386__) || defined(__x86_64__)) && !defined(_M_ARM64EC)
+ #	include <xmmintrin.h>
+ #	include <emmintrin.h>
+ #endif
+@@ -2135,7 +2135,7 @@ bool Blitter::fastResolve(const vk::Image *src, vk::Image *dst, VkImageResolve2K
+ 			{
+ 				int x = 0;
+ 
+-#if defined(__i386__) || defined(__x86_64__)
++#if (defined(__i386__) || defined(__x86_64__)) && !defined(_M_ARM64EC)
+ 				if(SSE2)
+ 				{
+ 					for(; (x + 3) < width; x += 4)
+diff --git a/src/Reactor/LLVMReactor.cpp b/src/Reactor/LLVMReactor.cpp
+index 6632ffdd7427042bdf324b976d5e9689d87b0304..e66b72f7f3133d15a07573d979d74b92860f4389 100644
+--- a/src/Reactor/LLVMReactor.cpp
++++ b/src/Reactor/LLVMReactor.cpp
+@@ -35,7 +35,7 @@
+ #include <thread>
+ #include <unordered_map>
+ 
+-#if defined(__i386__) || defined(__x86_64__)
++#if (defined(__i386__) || defined(__x86_64__)) && !defined(_M_ARM64EC)
+ #	include <xmmintrin.h>
+ #endif
+ 
+@@ -2893,7 +2893,7 @@ bool HasRcpApprox()
+ 
+ RValue<Float4> RcpApprox(RValue<Float4> x, bool exactAtPow2)
+ {
+-#if defined(__i386__) || defined(__x86_64__)
++#if (defined(__i386__) || defined(__x86_64__)) && !defined(_M_ARM64EC)
+ 	if(exactAtPow2)
+ 	{
+ 		// rcpps uses a piecewise-linear approximation which minimizes the relative error
+@@ -2909,7 +2909,7 @@ RValue<Float4> RcpApprox(RValue<Float4> x, bool exactAtPow2)
+ 
+ RValue<Float> RcpApprox(RValue<Float> x, bool exactAtPow2)
+ {
+-#if defined(__i386__) || defined(__x86_64__)
++#if (defined(__i386__) || defined(__x86_64__)) && !defined(_M_ARM64EC)
+ 	if(exactAtPow2)
+ 	{
+ 		// rcpss uses a piecewise-linear approximation which minimizes the relative error
+diff --git a/src/System/CPUID.cpp b/src/System/CPUID.cpp
+index 86c9fcef9a4a51b5523ee502baeb53ae0184acb8..18dd9a5e6e3b9f1db3f3b2b7f628d6a4b73ddf99 100644
+--- a/src/System/CPUID.cpp
++++ b/src/System/CPUID.cpp
+@@ -27,7 +27,7 @@
+ #	include <sys/types.h>
+ #endif
+ 
+-#if defined(__i386__) || defined(__x86_64__)
++#if (defined(__i386__) || defined(__x86_64__)) && !defined(_M_ARM64EC)
+ #	include <xmmintrin.h>
+ #	include <pmmintrin.h>
+ #endif
+diff --git a/src/System/Memory.cpp b/src/System/Memory.cpp
+index 6e8ddc17fb89237391180d42b1d5d9f82d963e4c..5f319acc37624288efd60ffc8b3b884b5b1fee10 100644
+--- a/src/System/Memory.cpp
++++ b/src/System/Memory.cpp
+@@ -36,8 +36,9 @@
+ #undef allocate
+ #undef deallocate
+ 
+-#if(defined(__i386__) || defined(_M_IX86) || defined(__x86_64__) || defined(_M_X64)) && !defined(__x86__)
+-#	define __x86__
++#if( (defined(__i386__) || defined(_M_IX86) || defined(__x86_64__) || defined(_M_X64)) && \
++     !defined(__x86__) && !defined(_M_ARM64EC))
++# define __x86__
+ #endif
+ 
+ // A Clang extension to determine compiler features.
+diff --git a/src/System/Timer.cpp b/src/System/Timer.cpp
+index 79e48cad85f4b5a9a7846af6806b7e1b8044d643..0ec0782710e00e68e9068904a9bc65f5a4219302 100644
+--- a/src/System/Timer.cpp
++++ b/src/System/Timer.cpp
+@@ -59,7 +59,7 @@ double Timer::seconds()
+ int64_t Timer::ticks()
+ {
+ #if defined(_WIN32)
+-#	if defined(_M_ARM64)
++#	if defined(_M_ARM64) || defined(_M_ARM64EC)
+ 	return _ReadStatusReg(ARM64_PMCCNTR_EL0);
+ #	else
+ 	return __rdtsc();
+diff --git a/third_party/llvm-10.0/llvm/lib/Support/Host.cpp b/third_party/llvm-10.0/llvm/lib/Support/Host.cpp
+index ef38c1c09413ab144d263c913228a8104ea0557c..5b5245d6bfffa9fdf2736fbd0fd4a858d23345ed 100644
+--- a/third_party/llvm-10.0/llvm/lib/Support/Host.cpp
++++ b/third_party/llvm-10.0/llvm/lib/Support/Host.cpp
+@@ -449,7 +449,7 @@ static bool isCpuIdSupported() {
+ static bool getX86CpuIDAndInfo(unsigned value, unsigned *rEAX, unsigned *rEBX,
+                                unsigned *rECX, unsigned *rEDX) {
+ #if defined(__GNUC__) || defined(__clang__)
+-#if defined(__x86_64__)
++#if defined(__x86_64__) && !defined(_M_ARM64EC)
+   // gcc doesn't know cpuid would clobber ebx/rbx. Preserve it manually.
+   // FIXME: should we save this for Clang?
+   __asm__("movq\t%%rbx, %%rsi\n\t"
+@@ -489,7 +489,7 @@ static bool getX86CpuIDAndInfoEx(unsigned value, unsigned subleaf,
+                                  unsigned *rEAX, unsigned *rEBX, unsigned *rECX,
+                                  unsigned *rEDX) {
+ #if defined(__GNUC__) || defined(__clang__)
+-#if defined(__x86_64__)
++#if defined(__x86_64__) && !defined(_M_ARM64EC)
+   // gcc doesn't know cpuid would clobber ebx/rbx. Preserve it manually.
+   // FIXME: should we save this for Clang?
+   __asm__("movq\t%%rbx, %%rsi\n\t"
+@@ -523,7 +523,7 @@ static bool getX86CpuIDAndInfoEx(unsigned value, unsigned subleaf,
+ 
+ // Read control register 0 (XCR0). Used to detect features such as AVX.
+ static bool getX86XCR0(unsigned *rEAX, unsigned *rEDX) {
+-#if defined(__GNUC__) || defined(__clang__)
++  #if defined(__x86_64__) && !defined(_M_ARM64EC)
+   // Check xgetbv; this uses a .byte sequence instead of the instruction
+   // directly because older assemblers do not include support for xgetbv and
+   // there is no easy way to conditionally compile based on the assembler used.

@@ -1,0 +1,69 @@
+diff --git a/source/common/normalizer2impl.cpp b/source/common/normalizer2impl.cpp
+index e6bd75e71738890506922135db6b6ff935c802cb..6d73b2132d6867999c108dfb76c3abebbfe55dc8 100644
+--- a/source/common/normalizer2impl.cpp
++++ b/source/common/normalizer2impl.cpp
+@@ -2226,7 +2226,7 @@ uint8_t Normalizer2Impl::getPreviousTrailCC(const uint8_t *start, const uint8_t
+ // function on Windows ARM64. As a work-around, we disable optimizations for this function.
+ // This work-around could/should be removed once the following versions of Visual Studio are no
+ // longer supported: All versions of VS2017, and versions of VS2019 below 16.4.
+-#if (defined(_MSC_VER) && (defined(_M_ARM64)) && (_MSC_VER < 1924))
++#if (defined(_MSC_VER) && (defined(_M_ARM64) || defined(_M_ARM64EC)) && (_MSC_VER < 1924))
+ #pragma optimize( "", off )
+ #endif
+ // Gets the FCD value from the regular normalization data.
+@@ -2262,7 +2262,7 @@ uint16_t Normalizer2Impl::getFCD16FromNormData(UChar32 c) const {
+     }
+     return norm16;
+ }
+-#if (defined(_MSC_VER) && (defined(_M_ARM64)) && (_MSC_VER < 1924))
++#if (defined(_MSC_VER) && (defined(_M_ARM64) || defined(_M_ARM64EC)) && (_MSC_VER < 1924))
+ #pragma optimize( "", on )
+ #endif
+ 
+diff --git a/source/common/ubidiwrt.cpp b/source/common/ubidiwrt.cpp
+index a69c0a4b8b16f8f309b503b204cd108ce6cb9c23..402d0838fa9a1696ea18343bd7c5619753f27840 100644
+--- a/source/common/ubidiwrt.cpp
++++ b/source/common/ubidiwrt.cpp
+@@ -350,7 +350,7 @@ ubidi_writeReverse(const UChar *src, int32_t srcLength,
+ // function on Windows ARM64. As a work-around, we disable optimizations for this function.
+ // This work-around could/should be removed once the following versions of Visual Studio are no
+ // longer supported: All versions of VS2017, and versions of VS2019 below 16.4.
+-#if (defined(_MSC_VER) && (defined(_M_ARM64)) && (_MSC_VER < 1924))
++#if (defined(_MSC_VER) && (defined(_M_ARM64) || defined(_M_ARM64EC)) && (_MSC_VER < 1924))
+ #pragma optimize( "", off )
+ #endif
+ U_CAPI int32_t U_EXPORT2
+@@ -645,6 +645,6 @@ ubidi_writeReordered(UBiDi *pBiDi,
+ 
+     return u_terminateUChars(saveDest, destCapacity, destCapacity-destSize, pErrorCode);
+ }
+-#if (defined(_MSC_VER) && (defined(_M_ARM64)) && (_MSC_VER < 1924))
++#if (defined(_MSC_VER) && (defined(_M_ARM64) || defined(_M_ARM64EC)) && (_MSC_VER < 1924))
+ #pragma optimize( "", on )
+ #endif
+diff --git a/source/i18n/double-conversion-utils.h b/source/i18n/double-conversion-utils.h
+index 11c92717c10d7265870a4eb37d505fd5e67c6e63..43661d3d6c4461b4fe1f7ae446c0e0299f5d3f2d 100644
+--- a/source/i18n/double-conversion-utils.h
++++ b/source/i18n/double-conversion-utils.h
+@@ -139,7 +139,7 @@ int main(int argc, char** argv) {
+ //
+ // If it prints "correct" then the architecture should be here, in the "correct" section.
+ #if defined(_M_X64) || defined(__x86_64__) || \
+-    defined(__ARMEL__) || defined(__avr32__) || defined(_M_ARM) || defined(_M_ARM64) || \
++    defined(__ARMEL__) || defined(__avr32__) || defined(_M_ARM) || defined(_M_ARM64) || defined(_M_ARM64EC) || \
+     defined(__hppa__) || defined(__ia64__) || \
+     defined(__mips__) || \
+     defined(__loongarch__) || \
+diff --git a/source/tools/toolutil/pkg_genc.cpp b/source/tools/toolutil/pkg_genc.cpp
+index 17347bac5d77e9ab430d51d1ac19e7da6bec451b..b80743c1308a0dc0d6a0cf9ac05eb954a0b35deb 100644
+--- a/source/tools/toolutil/pkg_genc.cpp
++++ b/source/tools/toolutil/pkg_genc.cpp
+@@ -794,7 +794,7 @@ getArchitecture(uint16_t *pCPU, uint16_t *pBits, UBool *pIsBigEndian, const char
+ #   else
+         *pCPU = IMAGE_FILE_MACHINE_UNKNOWN;
+ #   endif
+-#   if defined(_M_IA64) || defined(_M_AMD64) || defined (_M_ARM64)
++#   if defined(_M_IA64) || defined(_M_AMD64) || defined (_M_ARM64) || defined (_M_ARM64EC)
+         *pBits = 64; // Doesn't seem to be used for anything interesting though?
+ #   elif defined(_M_IX86) || defined(_M_ARM)
+         *pBits = 32;

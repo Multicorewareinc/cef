@@ -1,0 +1,56 @@
+diff --git a/include/perfetto/tracing/internal/track_event_data_source.h b/include/perfetto/tracing/internal/track_event_data_source.h
+index 8a3f33120656c2068b17cf0ad59e8f0442742001..be5db68e562cff2bf8927e056def31a92099355d 100644
+--- a/include/perfetto/tracing/internal/track_event_data_source.h
++++ b/include/perfetto/tracing/internal/track_event_data_source.h
+@@ -207,13 +207,13 @@ class TrackEventDataSource
+   }
+ 
+   static void Flush() {
+-    Base::template Trace([](typename Base::TraceContext ctx) { ctx.Flush(); });
++    Base::template Trace<>([](typename Base::TraceContext ctx) { ctx.Flush(); });
+   }
+ 
+   // Determine if *any* tracing category is enabled.
+   static bool IsEnabled() {
+     bool enabled = false;
+-    Base::template CallIfEnabled(
++    Base::template CallIfEnabled<>(
+         [&](uint32_t /*instances*/) { enabled = true; });
+     return enabled;
+   }
+@@ -228,7 +228,7 @@ class TrackEventDataSource
+   static bool IsDynamicCategoryEnabled(
+       const DynamicCategory& dynamic_category) {
+     bool enabled = false;
+-    Base::template Trace([&](typename Base::TraceContext ctx) {
++    Base::template Trace<>([&](typename Base::TraceContext ctx) {
+       enabled = IsDynamicCategoryEnabled(&ctx, dynamic_category);
+     });
+     return enabled;
+@@ -402,7 +402,7 @@ class TrackEventDataSource
+                                  const protos::gen::TrackDescriptor& desc) {
+     PERFETTO_DCHECK(track.uuid == desc.uuid());
+     TrackRegistry::Get()->UpdateTrack(track, desc.SerializeAsString());
+-    Base::template Trace([&](typename Base::TraceContext ctx) {
++    Base::template Trace<>([&](typename Base::TraceContext ctx) {
+       TrackEventInternal::WriteTrackDescriptor(
+           track, ctx.tls_inst_->trace_writer.get(), ctx.GetIncrementalState(),
+           *ctx.GetCustomTlsState(), TrackEventInternal::GetTraceTime());
+@@ -551,7 +551,7 @@ class TrackEventDataSource
+                                  Lambda lambda) PERFETTO_ALWAYS_INLINE {
+     using CatTraits = CategoryTraits<CategoryType>;
+     if (CatTraits::kIsDynamic) {
+-      Base::template TraceWithInstances(instances, std::move(lambda));
++      Base::template TraceWithInstances<>(instances, std::move(lambda));
+     } else {
+       Base::template TraceWithInstances<CategoryTracePointTraits>(
+           instances, std::move(lambda), {CatTraits::GetStaticIndex(category)});
+@@ -565,7 +565,7 @@ class TrackEventDataSource
+       const TrackType& track,
+       std::function<void(protos::pbzero::TrackDescriptor*)> callback) {
+     TrackRegistry::Get()->UpdateTrack(track, std::move(callback));
+-    Base::template Trace([&](typename Base::TraceContext ctx) {
++    Base::template Trace<>([&](typename Base::TraceContext ctx) {
+       TrackEventInternal::WriteTrackDescriptor(
+           track, ctx.tls_inst_->trace_writer.get(), ctx.GetIncrementalState(),
+           *ctx.GetCustomTlsState(), TrackEventInternal::GetTraceTime());

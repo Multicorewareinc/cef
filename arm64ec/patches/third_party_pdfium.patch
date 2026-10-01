@@ -1,0 +1,22 @@
+diff --git a/third_party/libopenjpeg20/opj_includes.h b/third_party/libopenjpeg20/opj_includes.h
+index 43c00a5565f93b691f3ce3f285f45d86acb8e6d5..82baf5b62b2289f8edce62096f84eb9a6dd1688a 100644
+--- a/third_party/libopenjpeg20/opj_includes.h
++++ b/third_party/libopenjpeg20/opj_includes.h
+@@ -137,7 +137,7 @@
+ #include <intrin.h>
+ static INLINE long opj_lrintf(float f)
+ {
+-#ifdef _M_X64
++#if defined(_M_X64) && !defined(_M_ARM64EC)
+     return _mm_cvt_ss2si(_mm_load_ss(&f));
+ 
+     /* commented out line breaks many tests */
+@@ -188,7 +188,7 @@ static INLINE long opj_lrintf(float f)
+ #endif
+ 
+ /* Apparently Visual Studio doesn't define __SSE__ / __SSE2__ macros */
+-#if defined(_M_X64)
++#if defined(_M_X64) && !defined(_M_ARM64EC)
+ /* Intel 64bit support SSE and SSE2 */
+ #   ifndef __SSE__
+ #       define __SSE__ 1

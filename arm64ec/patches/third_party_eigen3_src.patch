@@ -1,0 +1,13 @@
+diff --git a/Eigen/src/Core/util/Macros.h b/Eigen/src/Core/util/Macros.h
+index 60dcb486644c3a92468e87af826b9b6fca5c54b1..b1b84cfc65d5daeff05e490ef2a23d3dc210dacb 100644
+--- a/Eigen/src/Core/util/Macros.h
++++ b/Eigen/src/Core/util/Macros.h
+@@ -268,7 +268,7 @@
+ //------------------------------------------------------------------------------------------
+ 
+ 
+-#if defined(__x86_64__) || (defined(_M_X64) && !defined(_M_ARM64EC)) || defined(__amd64)
++#if (defined(__x86_64__) || defined(__x86_64) || defined(_M_X64) || defined(__amd64)) && !defined(_M_ARM64EC)
+   #define EIGEN_ARCH_x86_64 1
+ #else
+   #define EIGEN_ARCH_x86_64 0

@@ -1,0 +1,53 @@
+diff --git a/tensorflow/core/platform/cpu_info.cc b/tensorflow/core/platform/cpu_info.cc
+index 24d114aff63392a0c88ca9540039b6ccde300abc..732fa5fd7a59e7ef38a14e9cc6fad2cf46d0df6d 100644
+--- a/tensorflow/core/platform/cpu_info.cc
++++ b/tensorflow/core/platform/cpu_info.cc
+@@ -24,7 +24,7 @@ limitations under the License.
+ #endif
+ 
+ // SIMD extension querying is only available on x86.
+-#ifdef PLATFORM_IS_X86
++#if defined(PLATFORM_IS_X86) && !defined(_M_ARM64EC)
+ #ifdef PLATFORM_WINDOWS
+ // Visual Studio defines a builtin function for CPUID, so use that if possible.
+ #define GETCPUID(a, b, c, d, a_inp, c_inp) \
+diff --git a/tensorflow/core/platform/cpu_info.h b/tensorflow/core/platform/cpu_info.h
+index e81b90759191a52f83b39b8a7645828c073774c6..7207e964d1fd1479ee3583e874923cb9777d03bc 100644
+--- a/tensorflow/core/platform/cpu_info.h
++++ b/tensorflow/core/platform/cpu_info.h
+@@ -22,7 +22,7 @@ limitations under the License.
+ // reasons, many people depend on cpu_info.h in order to use kLittleEndian.
+ #include "tensorflow/core/platform/byte_order.h"
+ 
+-#if defined(_MSC_VER)
++#if defined(_MSC_VER) && !defined(_M_ARM64EC)
+ // included so __cpuidex function is available for GETCPUID on Windows
+ #include <intrin.h>
+ #endif
+diff --git a/tensorflow/core/platform/platform.h b/tensorflow/core/platform/platform.h
+index 8fcab6e76823467d5748965833c0dca578c6004e..6c54bbba266cb7521b1d4ba9d3d79cfe6bae87ad 100644
+--- a/tensorflow/core/platform/platform.h
++++ b/tensorflow/core/platform/platform.h
+@@ -61,16 +61,18 @@ limitations under the License.
+ 
+ // Look for both gcc/clang and Visual Studio macros indicating we're compiling
+ // for an x86 device.
+-#if defined(__x86_64__) || defined(__amd64__) || defined(_M_IX86) || \
+-    defined(_M_X64)
++#if (defined(__x86_64__) || defined(__amd64__) || defined(_M_IX86) || defined(_M_X64)) \
++    && !defined(_M_ARM64EC)
+ #define PLATFORM_IS_X86
++#pragma message("PLATFORM_IS_X86 is defined")
+ #endif
+ 
+ // Check if we are compmiling for an arm device.
+-#if defined(__arm__) || defined(__aarch64__)
++#if defined(__arm__) || defined(__aarch64__) || defined(_M_ARM64EC)
+ #define PLATFORM_IS_ARM
+-#if defined(__aarch64__)
++#if defined(__aarch64__) || defined(_M_ARM64EC)
+ #define PLATFORM_IS_ARM64
++#pragma message("Compiling for ARM64EC")
+ #else
+ #define PLATFORM_IS_ARM32
+ #endif

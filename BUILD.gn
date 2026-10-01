@@ -1662,6 +1662,13 @@ if (is_mac) {
         # ResourceBundle. See crbug.com/147663.
         "//ui/resources:ui_unscaled_resources_grd",
       ]
+
+      if (!is_component_build) {
+        # A static libcef.dll produces a PDB larger than the 4 GiB limit of the
+        # default 4 KiB page size. Allow up to 8 GiB for this target only;
+        # the global use_large_pdbs arg would relink every target.
+        ldflags = [ "/pdbpagesize:8192" ]
+      }
     }
 
     if (is_linux && !is_debug && use_allocator=="none") {
