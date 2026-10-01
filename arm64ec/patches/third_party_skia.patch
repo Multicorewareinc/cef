@@ -1,0 +1,134 @@
+diff --git a/include/core/SkTypes.h b/include/core/SkTypes.h
+index 8adaf3ac090202ba959d1ccf8184776a598b4e4b..2861f11f9aa21326d55cdce42c247b0107bae2e0 100644
+--- a/include/core/SkTypes.h
++++ b/include/core/SkTypes.h
+@@ -79,7 +79,7 @@
+     #endif
+ #endif
+ 
+-#if defined(__i386) || defined(_M_IX86) ||  defined(__x86_64__) || defined(_M_X64)
++#if (defined(__i386) || defined(_M_IX86) || defined(__x86_64__) || defined(_M_X64)) && !defined(_M_ARM64EC)
+   #define SK_CPU_X86 1
+ #endif
+ 
+@@ -127,20 +127,22 @@
+ #ifndef SK_CPU_SSE_LEVEL
+     // These checks must be done in descending order to ensure we set the highest
+     // available SSE level. 64-bit intel guarantees at least SSE2 support.
+-    #if defined(__AVX512F__) && defined(__AVX512DQ__) && defined(__AVX512CD__) && \
+-        defined(__AVX512BW__) && defined(__AVX512VL__)
+-        #define SK_CPU_SSE_LEVEL        SK_CPU_SSE_LEVEL_SKX
+-    #elif defined(__AVX2__)
+-        #define SK_CPU_SSE_LEVEL        SK_CPU_SSE_LEVEL_AVX2
+-    #elif defined(__AVX__)
+-        #define SK_CPU_SSE_LEVEL        SK_CPU_SSE_LEVEL_AVX
+-    #elif defined(_M_X64) || defined(_M_AMD64)
+-        #define SK_CPU_SSE_LEVEL        SK_CPU_SSE_LEVEL_SSE2
+-    #elif defined(_M_IX86_FP)
+-        #if _M_IX86_FP >= 2
+-            #define SK_CPU_SSE_LEVEL    SK_CPU_SSE_LEVEL_SSE2
+-        #elif _M_IX86_FP == 1
+-            #define SK_CPU_SSE_LEVEL    SK_CPU_SSE_LEVEL_SSE1
++    #if !defined(_M_ARM64EC)
++        #if defined(__AVX512F__) && defined(__AVX512DQ__) && defined(__AVX512CD__) && \
++            defined(__AVX512BW__) && defined(__AVX512VL__)
++            #define SK_CPU_SSE_LEVEL        SK_CPU_SSE_LEVEL_SKX
++        #elif defined(__AVX2__)
++            #define SK_CPU_SSE_LEVEL        SK_CPU_SSE_LEVEL_AVX2
++        #elif defined(__AVX__)
++            #define SK_CPU_SSE_LEVEL        SK_CPU_SSE_LEVEL_AVX
++        #elif defined(_M_X64) || defined(_M_AMD64)
++            #define SK_CPU_SSE_LEVEL        SK_CPU_SSE_LEVEL_SSE2
++        #elif defined(_M_IX86_FP)
++            #if _M_IX86_FP >= 2
++                #define SK_CPU_SSE_LEVEL    SK_CPU_SSE_LEVEL_SSE2
++            #elif _M_IX86_FP == 1
++                #define SK_CPU_SSE_LEVEL    SK_CPU_SSE_LEVEL_SSE1
++            #endif
+         #endif
+     #endif
+ #endif
+@@ -148,7 +150,7 @@
+ // ARM defines
+ #if defined(__arm__) && (!defined(__APPLE__) || !TARGET_IPHONE_SIMULATOR)
+     #define SK_CPU_ARM32
+-#elif defined(__aarch64__)
++#elif defined(__aarch64__) || defined(_M_ARM64EC)
+     #define SK_CPU_ARM64
+ #endif
+ 
+diff --git a/src/core/SkOpts_erms.cpp b/src/core/SkOpts_erms.cpp
+index b0761f1d33207a5fa3dc3b9c745859f50f6caf63..95e60c784b2dc96a80a65aa756ffad438acd180a 100644
+--- a/src/core/SkOpts_erms.cpp
++++ b/src/core/SkOpts_erms.cpp
+@@ -8,7 +8,7 @@
+ #include "src/core/SkMSAN.h"
+ #include "src/core/SkOpts.h"
+ 
+-#if defined(__x86_64__) || defined(_M_X64)  // memset16 and memset32 could work on 32-bit x86 too.
++#if (defined(__x86_64__) || defined(_M_X64)) && !defined(_M_ARM64EC)
+ 
+     static const char* note = "MSAN can't see that rep sto initializes memory.";
+ 
+diff --git a/src/opts/SkRasterPipeline_opts.h b/src/opts/SkRasterPipeline_opts.h
+index 94c5cb902f5f11c37e611cf474a8efb199f2eecf..8b40f22efe68f906571454a1977c3a46010c80af 100644
+--- a/src/opts/SkRasterPipeline_opts.h
++++ b/src/opts/SkRasterPipeline_opts.h
+@@ -1054,7 +1054,7 @@ static const size_t N = sizeof(F) / sizeof(float);
+     // We can still only pass 16 floats, so best as 4x {r,g,b,a}.
+     #define ABI __attribute__((pcs("aapcs-vfp")))
+     #define JUMPER_NARROW_STAGES 1
+-#elif defined(_MSC_VER)
++#elif defined(_MSC_VER) && !defined(_M_ARM64EC)
+     // Even if not vectorized, this lets us pass {r,g,b,a} as registers,
+     // instead of {b,a} on the stack.  Narrow stages work best for __vectorcall.
+     #define ABI __vectorcall
+diff --git a/third_party/skcms/skcms.cc b/third_party/skcms/skcms.cc
+index 6eaa9c7c08f390c99b6257ab2e42228db0351589..a46d5f59989ec975ce6120110f5fb78f66b674a0 100644
+--- a/third_party/skcms/skcms.cc
++++ b/third_party/skcms/skcms.cc
+@@ -2362,6 +2362,7 @@ namespace baseline {
+ }
+ 
+ // Now, instantiate any other versions of run_program() we may want for runtime detection.
++#if !defined(_M_ARM64EC)
+ #if !defined(SKCMS_PORTABLE) &&                           \
+     !defined(SKCMS_NO_RUNTIME_CPU_DETECTION) &&           \
+         (( defined(__clang__) && __clang_major__ >= 5) || \
+@@ -2485,6 +2486,8 @@ namespace baseline {
+ 
+ #endif
+ 
++#endif
++
+ typedef struct {
+     Op          op;
+     const void* arg;
+diff --git a/third_party/skcms/src/Transform_inl.h b/third_party/skcms/src/Transform_inl.h
+index 348a765ab2cabc9ac9a64af363f617a4e642dcd6..2d59dc3254230eb84b10d1f9b20ca84c0b24e292 100644
+--- a/third_party/skcms/src/Transform_inl.h
++++ b/third_party/skcms/src/Transform_inl.h
+@@ -33,7 +33,7 @@ using U8  = V<uint8_t>;
+ // Instead of checking __AVX__ below, we'll check USING_AVX.
+ // This lets skcms.cc set USING_AVX to force us in even if the compiler's not set that way.
+ // Same deal for __F16C__ and __AVX2__ ~~~> USING_AVX_F16C, USING_AVX2.
+-
++#if !defined(_M_ARM64EC)
+ #if !defined(USING_AVX)      && N == 8 && defined(__AVX__)
+     #define  USING_AVX
+ #endif
+@@ -46,12 +46,13 @@ using U8  = V<uint8_t>;
+ #if !defined(USING_AVX512F)  && N == 16 && defined(__AVX512F__)
+     #define  USING_AVX512F
+ #endif
++#endif
+ 
+ // Similar to the AVX+ features, we define USING_NEON and USING_NEON_F16C.
+ // This is more for organizational clarity... skcms.cc doesn't force these.
+ #if N > 1 && defined(__ARM_NEON)
+     #define USING_NEON
+-    #if __ARM_FP & 2
++    #if (__ARM_FP & 2) && !defined(_M_ARM64EC)
+         #define USING_NEON_F16C
+     #endif
+     #if defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC) && defined(SKCMS_OPT_INTO_NEON_FP16)

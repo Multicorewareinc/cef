@@ -1,0 +1,22 @@
+diff --git a/src/common/platform.h b/src/common/platform.h
+index c39c7e0405cdea9e348dc0498884c846e2a239ff..04a74370d10aa0efef80323ce6d17ec908e663ad 100644
+--- a/src/common/platform.h
++++ b/src/common/platform.h
+@@ -93,14 +93,15 @@
+ #    define FAR
+ #endif
+ 
+-#if defined(_MSC_VER) && !defined(_M_ARM) && !defined(_M_ARM64)
++#if defined(_MSC_VER) && !defined(_M_ARM) && !defined(_M_ARM64) && !defined(_M_ARM64EC)
+ #    include <intrin.h>
+ #    define ANGLE_USE_SSE
+-#elif defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
++#elif defined(__GNUC__) && ((defined(__x86_64__) || defined(__i386__)) && !defined(_M_ARM64EC))
+ #    include <x86intrin.h>
+ #    define ANGLE_USE_SSE
+ #endif
+ 
++
+ // Mips and arm devices need to include stddef for size_t.
+ #if defined(__mips__) || defined(__arm__) || defined(__aarch64__)
+ #    include <stddef.h>

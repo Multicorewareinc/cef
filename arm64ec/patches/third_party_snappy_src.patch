@@ -1,0 +1,22 @@
+diff --git a/snappy-internal.h b/snappy-internal.h
+index ae7ab5a33cd995994b8b63e0f0dd77a4146ab27e..6bcbf0669d7856d3f896fccc7ac60d3f6eb4c80d 100644
+--- a/snappy-internal.h
++++ b/snappy-internal.h
+@@ -230,7 +230,7 @@ static inline std::pair<size_t, bool> FindMatchLength(const char* s1,
+       uint64_t xorval = a1 ^ a2;
+       int shift = Bits::FindLSBSetNonZero64(xorval);
+       size_t matched_bytes = shift >> 3;
+-#ifndef __x86_64__
++#if !defined(__x86_64__) || defined(_M_ARM64EC)
+       *data = UNALIGNED_LOAD64(s2 + matched_bytes);
+ #else
+       // Ideally this would just be
+@@ -270,7 +270,7 @@ static inline std::pair<size_t, bool> FindMatchLength(const char* s1,
+       uint64_t xorval = a1 ^ a2;
+       int shift = Bits::FindLSBSetNonZero64(xorval);
+       size_t matched_bytes = shift >> 3;
+-#ifndef __x86_64__
++#if !defined(__x86_64__) || defined(_M_ARM64EC)
+       *data = UNALIGNED_LOAD64(s2 + matched_bytes);
+ #else
+       uint64_t a3 = UNALIGNED_LOAD64(s2 + 4);

@@ -1,0 +1,31 @@
+diff --git a/internal/detect_platform.h b/internal/detect_platform.h
+index 7f0d78c651b88a29ed3138c7148fe21c543c51c2..97db64d53a777b03bc8482e17161b2a47162367a 100644
+--- a/internal/detect_platform.h
++++ b/internal/detect_platform.h
+@@ -37,7 +37,7 @@
+ #define GEMMLOWP_ARM_32
+ #endif
+ 
+-#ifdef __aarch64__
++#if defined(__aarch64__) || defined(_M_ARM64EC)
+ #define GEMMLOWP_ARM_64
+ #endif
+ 
+@@ -63,7 +63,7 @@
+ #define GEMMLOWP_X86_32
+ #endif
+ 
+-#if defined(__x86_64__) || defined(_M_X64) || defined(__amd64)
++#if (defined(__x86_64__) || defined(_M_X64) || defined(__amd64)) && !defined(_M_ARM64EC)
+ #define GEMMLOWP_X86_64
+ #endif
+ 
+@@ -82,7 +82,7 @@
+ #ifdef GEMMLOWP_ALLOW_INLINE_ASM
+ 
+ // Detect NEON. It's important to check for both tokens.
+-#if (defined __ARM_NEON) || (defined __ARM_NEON__)
++#if (defined __ARM_NEON) || (defined __ARM_NEON__) || (defined _M_ARM64EC)
+ #define GEMMLOWP_NEON
+ #endif
+ 

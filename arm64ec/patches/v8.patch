@@ -1,0 +1,596 @@
+diff --git a/BUILD.gn b/BUILD.gn
+index 00770169bf5aa2e6d4eb55ec379a1d939934185f..8198697d942617e91292d61ae9f55456642cfbcd 100644
+--- a/BUILD.gn
++++ b/BUILD.gn
+@@ -4985,6 +4985,7 @@ v8_source_set("v8_base_without_compiler") {
+     ":v8_bigint",
+     ":v8_headers",
+     ":v8_heap_base",
++    ":v8_heap_base_stack",
+     ":v8_libbase",
+     ":v8_shared_internal_headers",
+     ":v8_tracing",
+@@ -5603,10 +5604,25 @@ v8_source_set("v8_heap_base_headers") {
+   public_deps = [ ":v8_libbase" ]
+ }
+ 
++v8_source_set("v8_heap_base_stack") {
++  sources = [ "src/heap/base/stack.cc" ]
++  configs = [ ":internal_config" ]
++
++  if (cef_enable_arm64ec) {
++    remove_configs = [ "//build/config/compiler:optimize_max" ]
++    cflags = [ "/Ob2", "/Oy-", "/Gw" ]
++  }
++
++  public_deps = [
++    ":v8_heap_base_headers",
++    ":v8_libbase",
++  ]
++}
++
++
+ v8_source_set("v8_heap_base") {
+   sources = [
+     "src/heap/base/active-system-pages.cc",
+-    "src/heap/base/stack.cc",
+     "src/heap/base/worklist.cc",
+   ]
+ 
+@@ -5831,6 +5847,7 @@ v8_source_set("cppgc_base") {
+   public_deps = [
+     ":cppgc_headers",
+     ":v8_heap_base",
++    ":v8_heap_base_stack",
+     ":v8_libbase",
+     ":v8_libplatform",
+   ]
+@@ -6265,7 +6282,10 @@ if (is_component_build) {
+   v8_component("v8_heap_base_for_testing") {
+     testonly = true
+ 
+-    public_deps = [ ":v8_heap_base" ]
++    public_deps = [
++      ":v8_heap_base",
++      ":v8_heap_base_stack",
++    ]
+ 
+     configs = []
+     public_configs = [ ":external_config" ]
+@@ -6317,7 +6337,10 @@ if (is_component_build) {
+   group("v8_heap_base_for_testing") {
+     testonly = true
+ 
+-    public_deps = [ ":v8_heap_base" ]
++    public_deps = [
++      ":v8_heap_base",
++      ":v8_heap_base_stack",
++    ]
+ 
+     public_configs = [ ":external_config" ]
+   }
+diff --git a/include/v8-cppgc.h b/include/v8-cppgc.h
+index 412154930f7d92b5e3932bf7a1cace16eee940e8..401e492210609f9c1b16a082ff9d97b8acd4fc61 100644
+--- a/include/v8-cppgc.h
++++ b/include/v8-cppgc.h
+@@ -77,6 +77,9 @@ struct WrapperDescriptor final {
+ };
+ 
+ struct V8_EXPORT CppHeapCreateParams {
++  CppHeapCreateParams(const CppHeapCreateParams&) = delete;
++  CppHeapCreateParams& operator=(const CppHeapCreateParams&) = delete;
++
+   std::vector<std::unique_ptr<cppgc::CustomSpaceBase>> custom_spaces;
+   WrapperDescriptor wrapper_descriptor;
+ };
+diff --git a/include/v8-fast-api-calls.h b/include/v8-fast-api-calls.h
+index 6ef950c10f22b05c0da6b7f67bdb627f92a69bd2..6b79a11cb670e7eb317d2b4b0fa15849e33c7601 100644
+--- a/include/v8-fast-api-calls.h
++++ b/include/v8-fast-api-calls.h
+@@ -731,7 +731,7 @@ struct TypeInfoHelper<FastApiCallbackOptions&> {
+ }  // namespace internal
+ 
+ template <typename T, CTypeInfo::Flags... Flags>
+-class V8_EXPORT CTypeInfoBuilder {
++class __declspec(dllexport) CTypeInfoBuilder {
+  public:
+   using BaseType = T;
+ 
+diff --git a/src/base/bit-field.h b/src/base/bit-field.h
+index 9a66468d4e0006320f02e680f1b8e07e52e6a152..3a8bad4e7665b85e216d8355d3e6613a44199e62 100644
+--- a/src/base/bit-field.h
++++ b/src/base/bit-field.h
+@@ -47,7 +47,7 @@ class BitField final {
+ 
+   // Tells whether the provided value fits into the bit field.
+   static constexpr bool is_valid(T value) {
+-    return (static_cast<U>(value) & ~static_cast<U>(kMax)) == 0;
++    return (static_cast<U>(value) & ~static_cast<U>(kNumValues - 1)) == 0;
+   }
+ 
+   // Returns a type U with the bit field value encoded.
+diff --git a/src/base/build_config.h b/src/base/build_config.h
+index 3befde51e7f42c2832e14874113df419a4774759..ec1fd06850efc2f0474532735c52783cd5d8448c 100644
+--- a/src/base/build_config.h
++++ b/src/base/build_config.h
+@@ -11,7 +11,7 @@
+ //   http://msdn.microsoft.com/en-us/library/b0084kay.aspx
+ //   http://www.agner.org/optimize/calling_conventions.pdf
+ //   or with gcc, run: "echo | gcc -E -dM -"
+-#if defined(_M_X64) || defined(__x86_64__)
++#if (defined(_M_X64) || defined(__x86_64__)) && !defined(_M_ARM64EC)
+ #define V8_HOST_ARCH_X64 1
+ #if defined(__x86_64__) && __SIZEOF_POINTER__ == 4  // Check for x32.
+ #define V8_HOST_ARCH_32_BIT 1
+@@ -21,7 +21,7 @@
+ #elif defined(_M_IX86) || defined(__i386__)
+ #define V8_HOST_ARCH_IA32 1
+ #define V8_HOST_ARCH_32_BIT 1
+-#elif defined(__AARCH64EL__) || defined(_M_ARM64)
++#elif defined(__AARCH64EL__) || defined(_M_ARM64) || defined(_M_ARM64EC)
+ #define V8_HOST_ARCH_ARM64 1
+ #define V8_HOST_ARCH_64_BIT 1
+ #elif defined(__ARMEL__)
+@@ -87,11 +87,11 @@
+     !V8_TARGET_ARCH_ARM64 && !V8_TARGET_ARCH_MIPS && !V8_TARGET_ARCH_MIPS64 && \
+     !V8_TARGET_ARCH_PPC && !V8_TARGET_ARCH_PPC64 && !V8_TARGET_ARCH_S390 &&    \
+     !V8_TARGET_ARCH_RISCV64 && !V8_TARGET_ARCH_LOONG64
+-#if defined(_M_X64) || defined(__x86_64__)
++#if (defined(_M_X64) || defined(__x86_64__)) && !defined(_M_ARM64EC)
+ #define V8_TARGET_ARCH_X64 1
+ #elif defined(_M_IX86) || defined(__i386__)
+ #define V8_TARGET_ARCH_IA32 1
+-#elif defined(__AARCH64EL__) || defined(_M_ARM64)
++#elif defined(__AARCH64EL__) || defined(_M_ARM64) || defined(_M_ARM64EC)
+ #define V8_TARGET_ARCH_ARM64 1
+ #elif defined(__ARMEL__)
+ #define V8_TARGET_ARCH_ARM 1
+diff --git a/src/base/debug/stack_trace_win.cc b/src/base/debug/stack_trace_win.cc
+index f981bec6101975e8100d726ff6ad7e062359ebe9..9a72695551db4af0b566ea21e0e071e938b37029 100644
+--- a/src/base/debug/stack_trace_win.cc
++++ b/src/base/debug/stack_trace_win.cc
+@@ -194,16 +194,22 @@ void StackTrace::InitTrace(const CONTEXT* context_record) {
+   STACKFRAME64 stack_frame;
+   memset(&stack_frame, 0, sizeof(stack_frame));
+ #if defined(_WIN64)
+-#if defined(_M_X64)
++#if defined(_M_X64) && !defined(_M_ARM64EC)
+   int machine_type = IMAGE_FILE_MACHINE_AMD64;
+   stack_frame.AddrPC.Offset = context_record->Rip;
+   stack_frame.AddrFrame.Offset = context_record->Rbp;
+   stack_frame.AddrStack.Offset = context_record->Rsp;
+-#elif defined(_M_ARM64)
++#elif defined(_M_ARM64) || defined(_M_ARM64EC)
+   int machine_type = IMAGE_FILE_MACHINE_ARM64;
++#if defined(_M_ARM64EC)
++  stack_frame.AddrPC.Offset = context_record->Rip;
++  stack_frame.AddrFrame.Offset = context_record->Rbp;
++  stack_frame.AddrStack.Offset = context_record->Rsp;
++#else
+   stack_frame.AddrPC.Offset = context_record->Pc;
+   stack_frame.AddrFrame.Offset = context_record->Fp;
+   stack_frame.AddrStack.Offset = context_record->Sp;
++#endif
+ #else
+ #error Unsupported Arch
+ #endif
+diff --git a/src/base/platform/platform-win32.cc b/src/base/platform/platform-win32.cc
+index 4857a25027f46f791b769c358dc51822c7a2acc2..09b985bd0160f76e7c83eecac7cf75fe3dc7ceac 100644
+--- a/src/base/platform/platform-win32.cc
++++ b/src/base/platform/platform-win32.cc
+@@ -865,32 +865,67 @@ DWORD GetFileViewAccessFromMemoryPermission(OS::MemoryPermission access) {
+   UNREACHABLE();
+ }
+ 
++// On ARM64EC, native code may only execute from memory that was marked as EC
++// code when it was *reserved*. Marking it later when committing with an
++// executable protection has no effect, so JIT regions (which V8 reserves as
++// kNoAccessWillJitLater / PAGE_NOACCESS) must request EC code up front.
++bool IsJitPermission(OS::MemoryPermission access) {
++  return access == OS::MemoryPermission::kNoAccessWillJitLater ||
++         access == OS::MemoryPermission::kReadWriteExecute ||
++         access == OS::MemoryPermission::kReadExecute;
++}
++
+ void* VirtualAllocWrapper(void* address, size_t size, DWORD flags,
+-                          DWORD protect) {
+-  if (VirtualAlloc2) {
+-    return VirtualAlloc2(GetCurrentProcess(), address, size, flags, protect,
+-                         NULL, 0);
+-  } else {
+-    return VirtualAlloc(address, size, flags, protect);
+-  }
++                          DWORD protect, bool ec_code = false) {
++#if (defined(_M_X64) || defined(__x86_64__) || defined(_M_ARM64)) && !defined(_M_ARM64EC)
++    USE(ec_code);
++    if (VirtualAlloc2) {
++      return VirtualAlloc2(GetCurrentProcess(), address, size, flags, protect,
++                          nullptr, 0);
++    } else {
++      return VirtualAlloc(address, size, flags, protect);
++    }
++#elif defined(_M_ARM64EC)
++    OS::EnsureWin32MemoryAPILoaded();
++    if (ec_code || protect == (PAGE_EXECUTE_READWRITE | PAGE_TARGETS_INVALID)
++    || protect == (PAGE_EXECUTE_READ | PAGE_TARGETS_INVALID)) {
++      if (VirtualAlloc2) {
++        MEM_EXTENDED_PARAMETER Parameter = { 0 };
++        Parameter.Type = MemExtendedParameterAttributeFlags;
++        Parameter.ULong64 = MEM_EXTENDED_PARAMETER_EC_CODE;
++        return VirtualAlloc2(GetCurrentProcess(), address, size, flags, protect,
++                            &Parameter, 1);
++      }
++      // Fallback if VirtualAlloc2 is unavailable
++      return VirtualAlloc(address, size, flags, protect);
++    } else {
++      if (VirtualAlloc2) {
++        return VirtualAlloc2(GetCurrentProcess(), address, size, flags, protect,
++                            nullptr, 0);
++      } else {
++        return VirtualAlloc(address, size, flags, protect);
++      }
++    }
++#endif
+ }
+ 
+ uint8_t* VirtualAllocWithHint(size_t size, DWORD flags, DWORD protect,
+-                              void* hint) {
+-  LPVOID base = VirtualAllocWrapper(hint, size, flags, protect);
++                              void* hint, bool ec_code = false) {
++  LPVOID base = VirtualAllocWrapper(hint, size, flags, protect, ec_code);
+ 
+   // On failure, let the OS find an address to use.
+   if (hint && base == nullptr) {
+-    base = VirtualAllocWrapper(nullptr, size, flags, protect);
++    base = VirtualAllocWrapper(nullptr, size, flags, protect, ec_code);
+   }
+ 
+   return reinterpret_cast<uint8_t*>(base);
+ }
+ 
+ void* AllocateInternal(void* hint, size_t size, size_t alignment,
+-                       size_t page_size, DWORD flags, DWORD protect) {
++                       size_t page_size, DWORD flags, DWORD protect,
++                       bool ec_code = false) {
+   // First, try an exact size aligned allocation.
+-  uint8_t* base = VirtualAllocWithHint(size, flags, protect, hint);
++  uint8_t* base = VirtualAllocWithHint(size, flags, protect, hint, ec_code);
+   if (base == nullptr) return nullptr;  // Can't allocate, we're OOM.
+ 
+   // If address is suitably aligned, we're done.
+@@ -910,7 +945,7 @@ void* AllocateInternal(void* hint, size_t size, size_t alignment,
+   const int kMaxAttempts = 3;
+   aligned_base = nullptr;
+   for (int i = 0; i < kMaxAttempts; ++i) {
+-    base = VirtualAllocWithHint(padded_size, flags, protect, hint);
++    base = VirtualAllocWithHint(padded_size, flags, protect, hint, ec_code);
+     if (base == nullptr) return nullptr;  // Can't allocate, we're OOM.
+ 
+     // Try to trim the allocation by freeing the padded allocation and then
+@@ -919,7 +954,7 @@ void* AllocateInternal(void* hint, size_t size, size_t alignment,
+     aligned_base = reinterpret_cast<uint8_t*>(
+         RoundUp(reinterpret_cast<uintptr_t>(base), alignment));
+     base = reinterpret_cast<uint8_t*>(
+-        VirtualAllocWrapper(aligned_base, size, flags, protect));
++        VirtualAllocWrapper(aligned_base, size, flags, protect, ec_code));
+     // We might not get the reduced allocation due to a race. In that case,
+     // base will be nullptr.
+     if (base != nullptr) break;
+@@ -951,7 +986,8 @@ void* OS::Allocate(void* hint, size_t size, size_t alignment,
+                     : MEM_RESERVE | MEM_COMMIT;
+   DWORD protect = GetProtectionFromMemoryPermission(access);
+ 
+-  return AllocateInternal(hint, size, alignment, page_size, flags, protect);
++  return AllocateInternal(hint, size, alignment, page_size, flags, protect,
++                          IsJitPermission(access));
+ }
+ 
+ // static
+@@ -1267,8 +1303,23 @@ bool AddressSpaceReservation::Allocate(void* address, size_t size,
+                     ? MEM_RESERVE | MEM_REPLACE_PLACEHOLDER
+                     : MEM_RESERVE | MEM_COMMIT | MEM_REPLACE_PLACEHOLDER;
+   DWORD protect = GetProtectionFromMemoryPermission(access);
++
++#if (defined(_M_X64) || defined(__x86_64__) || defined(_M_ARM64)) && !defined(_M_ARM64EC)
+   return VirtualAlloc2(GetCurrentProcess(), address, size, flags, protect,
+-                       nullptr, 0);
++  nullptr, 0);
++#elif defined(_M_ARM64EC)
++  OS::EnsureWin32MemoryAPILoaded();
++  if (IsJitPermission(access)) {
++    MEM_EXTENDED_PARAMETER Parameter = { 0 };
++    Parameter.Type = MemExtendedParameterAttributeFlags;
++    Parameter.ULong64 = MEM_EXTENDED_PARAMETER_EC_CODE;
++    return VirtualAlloc2(GetCurrentProcess(), address, size, flags, protect,
++                        &Parameter, 1);
++  } else {
++    return VirtualAlloc2(GetCurrentProcess(), address, size, flags, protect,
++    nullptr, 0);
++  }
++#endif
+ }
+ 
+ bool AddressSpaceReservation::Free(void* address, size_t size) {
+diff --git a/src/bigint/digit-arithmetic.h b/src/bigint/digit-arithmetic.h
+index d9113efc91e63d5a1a835202c6cb0b9321777d21..c9ea7c5a4bfff06c124021f97bd910e1cfb4c6c8 100644
+--- a/src/bigint/digit-arithmetic.h
++++ b/src/bigint/digit-arithmetic.h
+@@ -122,7 +122,7 @@ static inline digit_t digit_div(digit_t high, digit_t low, digit_t divisor,
+   DCHECK(high < divisor);
+   DCHECK(divisor != 0);
+ #endif
+-#if __x86_64__ && (__GNUC__ || __clang__)
++#if __x86_64__ && (__GNUC__ || __clang__) &!_M_ARM64EC
+   digit_t quotient;
+   digit_t rem;
+   __asm__("divq  %[divisor]"
+@@ -133,7 +133,7 @@ static inline digit_t digit_div(digit_t high, digit_t low, digit_t divisor,
+           : "d"(high), "a"(low), [divisor] "rm"(divisor));
+   *remainder = rem;
+   return quotient;
+-#elif __i386__ && (__GNUC__ || __clang__)
++#elif __i386__ && (__GNUC__ || __clang__) &!_M_ARM64EC
+   digit_t quotient;
+   digit_t rem;
+   __asm__("divl  %[divisor]"
+diff --git a/src/codegen/arm64/macro-assembler-arm64.cc b/src/codegen/arm64/macro-assembler-arm64.cc
+index ca52e6ecca7cb8033d9d3e1a26bfcd105cb002a7..9f171d46646ddfcab23101979c31477ac6923284 100644
+--- a/src/codegen/arm64/macro-assembler-arm64.cc
++++ b/src/codegen/arm64/macro-assembler-arm64.cc
+@@ -1783,6 +1783,40 @@ void TurboAssembler::CallCFunction(Register function, int num_of_reg_args,
+ 
+   Pop(addr_scratch, pc_scratch);
+ 
++  // Skip FFS sequence for external functions in ARM64EC mode.
++  {
++    Register tmp = x10;
++    Push(tmp, xzr);
++    Label no_adjust;
++
++    // Check following code:
++    /*
++      488bc4          mov     rax,rsp
++      48895820        mov     qword ptr [rax+20h],rbx
++      55              push    rbp
++    */
++    Ldr(tmp, MemOperand(function, 0));
++    Cmp(tmp, Immediate(0x5520588948c48b48ULL));
++    B(ne, &no_adjust);
++
++    /*
++      5d              pop     rbp
++      e9xxxxxxxx      jmp     xxx
++    */
++    Ldrh(tmp.W(), MemOperand(function, 8));
++    Cmp(tmp.W(), Immediate(0xe95d));
++    B(ne, &no_adjust);
++
++    // Adjust function to point to the actual target.
++    Ldrsw(tmp, MemOperand(function, 10));
++    Add(function, function, 14);  // Skip the jump instruction.
++    Add(function, function, tmp);
++
++    Bind(&no_adjust);
++    Pop(xzr, tmp);
++  }
++
++
+   // Call directly. The function called cannot cause a GC, or allow preemption,
+   // so the return address in the link register stays correct.
+   Call(function);
+diff --git a/src/compiler/linkage.h b/src/compiler/linkage.h
+index 729ac9b4f9f51c1fe5dcb03927e9d5dff861db1c..55fe8e165ec3e090402210b36cae264b9c7bb688 100644
+--- a/src/compiler/linkage.h
++++ b/src/compiler/linkage.h
+@@ -19,7 +19,7 @@
+ #include "src/runtime/runtime.h"
+ #include "src/zone/zone.h"
+ 
+-#if !defined(__clang__) && defined(_M_ARM64)
++#if !defined(__clang__) && (defined(_M_ARM64) || defined(_M_ARM64EC))
+ // _M_ARM64 is an MSVC-specific macro that clang-cl emulates.
+ #define NO_INLINE_FOR_ARM64_MSVC __declspec(noinline)
+ #else
+diff --git a/src/diagnostics/unwinding-info-win64.cc b/src/diagnostics/unwinding-info-win64.cc
+index 4a70a284785b1c3f9c4a80b1482cbbb428df4c42..1127d26c93dc0663ac6c0ec8dba639575f91281e 100644
+--- a/src/diagnostics/unwinding-info-win64.cc
++++ b/src/diagnostics/unwinding-info-win64.cc
+@@ -316,7 +316,7 @@ struct CodeRangeUnwindingRecord {
+   // More RUNTIME_FUNCTION structs could follow below array because the number
+   // of RUNTIME_FUNCTION needed to cover given code range is computed at
+   // runtime.
+-  RUNTIME_FUNCTION runtime_function[kDefaultRuntimeFunctionCount];
++  ARM64_RUNTIME_FUNCTION runtime_function[kDefaultRuntimeFunctionCount];
+ };
+ 
+ #pragma pack(pop)
+@@ -558,7 +558,7 @@ void RegisterNonABICompliantCodeRange(void* start, size_t size_in_bytes) {
+     InitUnwindingRecord(record, size_in_bytes);
+ 
+     CHECK(AddGrowableFunctionTable(
+-        &record->dynamic_table, record->runtime_function,
++        &record->dynamic_table, reinterpret_cast<PRUNTIME_FUNCTION>(record->runtime_function),
+         record->runtime_function_count, record->runtime_function_count,
+         reinterpret_cast<DWORD64>(start),
+         reinterpret_cast<DWORD64>(reinterpret_cast<uint8_t*>(start) +
+diff --git a/src/heap/base/asm/x64/push_registers_asm.cc b/src/heap/base/asm/x64/push_registers_asm.cc
+index 9780b877b8c23a8f2f061a82567c64f347ff7e76..e73ea01cf18f5ec26902714d71db70ab9a1c9c0b 100644
+--- a/src/heap/base/asm/x64/push_registers_asm.cc
++++ b/src/heap/base/asm/x64/push_registers_asm.cc
+@@ -22,7 +22,8 @@
+ // on the stack and we push 232 bytes which maintains 16-byte stack alignment
+ // at the call.
+ // Source: https://docs.microsoft.com/en-us/cpp/build/x64-calling-convention
+-asm(".globl PushAllRegistersAndIterateStack             \n"
++asm(".att_syntax                                        \n"
++    ".globl PushAllRegistersAndIterateStack             \n"
+     "PushAllRegistersAndIterateStack:                   \n"
+     // rbp is callee-saved. Maintain proper frame pointer for debugging.
+     "  push %rbp                                        \n"
+diff --git a/src/heap/base/stack.cc b/src/heap/base/stack.cc
+index 7ae7e1380a68ff8efe903cbb9cf025451e792ecf..a322963f8f9dfc7b31c9e6fa50577e533fad1346 100644
+--- a/src/heap/base/stack.cc
++++ b/src/heap/base/stack.cc
+@@ -151,7 +151,12 @@ void IteratePointersImpl(const Stack* stack, StackVisitor* visitor,
+ 
+ void Stack::IteratePointers(StackVisitor* visitor) const {
+   DCHECK_NOT_NULL(stack_start_);
+-  PushAllRegistersAndIterateStack(this, visitor, &IteratePointersImpl);
++  typedef void (*TrampolineType)(const Stack*, StackVisitor*,
++                                 IterateStackCallback);
++  TrampolineType trampoline = PushAllRegistersAndIterateStack;
++  // Indirect call to PushAllRegistersAndIterateStack to explicitly enable CFG check.
++  trampoline(this, visitor, &IteratePointersImpl);
++  // PushAllRegistersAndIterateStack(this, visitor, &IteratePointersImpl);
+   // No need to deal with callee-saved registers as they will be kept alive by
+   // the regular conservative stack iteration.
+   // TODO(chromium:1056170): Add support for SIMD and/or filtering.
+diff --git a/src/libsampler/sampler.cc b/src/libsampler/sampler.cc
+index 7dfff1f8f9c765f791ef8320b05e20b1041b2822..82d4a48d0bc5e9cead3813f271c02364a5e3ee67 100644
+--- a/src/libsampler/sampler.cc
++++ b/src/libsampler/sampler.cc
+@@ -600,9 +600,15 @@ void Sampler::DoSample() {
+     state.sp = reinterpret_cast<void*>(context.Rsp);
+     state.fp = reinterpret_cast<void*>(context.Rbp);
+ #elif V8_HOST_ARCH_ARM64
++#if !defined(_M_ARM64EC)
+     state.pc = reinterpret_cast<void*>(context.Pc);
+     state.sp = reinterpret_cast<void*>(context.Sp);
+     state.fp = reinterpret_cast<void*>(context.Fp);
++#else
++    state.pc = reinterpret_cast<void*>(context.Rip);
++    state.sp = reinterpret_cast<void*>(context.Rsp);
++    state.fp = reinterpret_cast<void*>(context.Rbp);
++#endif  
+ #else
+     state.pc = reinterpret_cast<void*>(context.Eip);
+     state.sp = reinterpret_cast<void*>(context.Esp);
+diff --git a/src/objects/simd.cc b/src/objects/simd.cc
+index d3cedfe3302fa9d7fc4f97c45e9952600bf76ae4..d4060538246e9d13b8c9582c0e16ea2106094956 100644
+--- a/src/objects/simd.cc
++++ b/src/objects/simd.cc
+@@ -89,28 +89,36 @@ inline uintptr_t slow_search(T* array, uintptr_t array_len, uintptr_t index,
+ //   max(v & mask) = 4
+ //   index of the first match = 4-max = 4-4 = 0
+ //
+-template <typename T>
+-inline int extract_first_nonzero_index(T v) {
+-  UNREACHABLE();
+-}
+ 
+-template <>
+-inline int extract_first_nonzero_index(int32x4_t v) {
+-  int32x4_t mask = {4, 3, 2, 1};
++// With MSVC, uint32x4_t and uint64x2_t typedef to a union, where first member
++// is uint64_t[2], and not uint32_t[4].
++// C++ standard dictates that a union can only be initialized through its first
++// member, which forces us to have uint64_t[2] for definition.
++#if defined(_MSC_VER) && !defined(__clang__)
++#define PACK32x4(w, x, y, z) \
++  { ((w) + (uint64_t(x) << 32)), ((y) + (uint64_t(z) << 32)) }
++#else
++#define PACK32x4(w, x, y, z) \
++  { (w), (x), (y), (z) }
++#endif  // MSVC workaround
++
++
++inline int extract_first_nonzero_index_int32x4_t(int32x4_t v) {
++  int32x4_t mask = PACK32x4(4, 3, 2, 1);
+   mask = vandq_u32(mask, v);
+   return 4 - vmaxvq_u32(mask);
+ }
+ 
+-template <>
+-inline int extract_first_nonzero_index(int64x2_t v) {
+-  int32x4_t mask = {2, 0, 1, 0};  // Could also be {2,2,1,1} or {0,2,0,1}
++
++inline int extract_first_nonzero_index_int64x2_t(int64x2_t v) {
++  int32x4_t mask = PACK32x4(2, 0, 1, 0);  // Could also be {2,2,1,1} or {0,2,0,1}
+   mask = vandq_u32(mask, vreinterpretq_s32_s64(v));
+   return 2 - vmaxvq_u32(mask);
+ }
+ 
+-template <>
+-inline int extract_first_nonzero_index(float64x2_t v) {
+-  int32x4_t mask = {2, 0, 1, 0};  // Could also be {2,2,1,1} or {0,2,0,1}
++
++inline int extract_first_nonzero_index_float64x2_t(float64x2_t v) {
++  int32x4_t mask = PACK32x4(2, 0, 1, 0);   // Could also be {2,2,1,1} or {0,2,0,1}
+   mask = vandq_u32(mask, vreinterpretq_s32_f64(v));
+   return 2 - vmaxvq_u32(mask);
+ }
+@@ -125,7 +133,7 @@ inline int extract_first_nonzero_index(float64x2_t v) {
+       type_load vector = *reinterpret_cast<type_load*>(&array[index]);       \
+       type_eq eq = cmp(vector, search_element_vec);                          \
+       if (movemask(eq)) {                                                    \
+-        return index + extract_first_nonzero_index(eq);                      \
++        return index + extract_first_nonzero_index_##type_eq(eq);                      \
+       }                                                                      \
+     }                                                                        \
+   }
+diff --git a/src/objects/swiss-hash-table-helpers.h b/src/objects/swiss-hash-table-helpers.h
+index 3a3ed89bc49b5eb958851127c5d28fdb874887a8..dc9a8fc12a587dbd6b7e244fc5aa16566144c914 100644
+--- a/src/objects/swiss-hash-table-helpers.h
++++ b/src/objects/swiss-hash-table-helpers.h
+@@ -21,7 +21,7 @@
+ #ifndef V8_SWISS_TABLE_HAVE_SSE2_HOST
+ #if (defined(__SSE2__) ||  \
+      (defined(_MSC_VER) && \
+-      (defined(_M_X64) || (defined(_M_IX86) && _M_IX86_FP >= 2))))
++      ((defined(_M_X64) && !defined(_M_ARM64EC)) || (defined(_M_IX86) && _M_IX86_FP >= 2))))
+ #define V8_SWISS_TABLE_HAVE_SSE2_HOST 1
+ #else
+ #define V8_SWISS_TABLE_HAVE_SSE2_HOST 0
+diff --git a/src/trap-handler/handler-outside-simulator.cc b/src/trap-handler/handler-outside-simulator.cc
+index 179eab0659f923983065267c25bcde2064c9be6d..5ba96817469d10fd68087915ff92a9e15e74197b 100644
+--- a/src/trap-handler/handler-outside-simulator.cc
++++ b/src/trap-handler/handler-outside-simulator.cc
+@@ -13,6 +13,7 @@
+ 
+ // Define the ProbeMemory function declared in trap-handler-simulators.h.
+ asm(
++    ".att_syntax                                    \n"
+     ".globl " SYMBOL(ProbeMemory) "                 \n"
+     SYMBOL(ProbeMemory) ":                          \n"
+ // First parameter (address) passed in %rdi on Linux/Mac, and %rcx on Windows.
+diff --git a/test/cctest/test-assembler-arm64.cc b/test/cctest/test-assembler-arm64.cc
+index 71698569606a761c5338cdf5ff1d67e1a6332152..4173cf1255b98e2e9426942e5266f220e1fd62f4 100644
+--- a/test/cctest/test-assembler-arm64.cc
++++ b/test/cctest/test-assembler-arm64.cc
+@@ -30,6 +30,7 @@
+ #include <string.h>
+ #include <cmath>
+ #include <limits>
++#include <optional>
+ 
+ #include "src/init/v8.h"
+ 
+diff --git a/test/cctest/test-stack-unwinding-win64.cc b/test/cctest/test-stack-unwinding-win64.cc
+index 4b30658ad31b02b280879217398fce28ffe5d66f..9afcd35757b3b23c5d0c8e38a168b699cfe7f09e 100644
+--- a/test/cctest/test-stack-unwinding-win64.cc
++++ b/test/cctest/test-stack-unwinding-win64.cc
+@@ -14,7 +14,11 @@
+ #if defined(V8_OS_WIN_X64)
+ #define CONTEXT_PC(context) (context.Rip)
+ #elif defined(V8_OS_WIN_ARM64)
++#if !defined(_M_ARM64EC)
+ #define CONTEXT_PC(context) (context.Pc)
++#else
++#define CONTEXT_PC(context) (context.Rip)
++#endif
+ #endif
+ 
+ #include <windows.h>
+diff --git a/test/unittests/api/isolate-unittest.cc b/test/unittests/api/isolate-unittest.cc
+index cefd93889d43e7c28098902b22c10c6219222ccc..996a5c43ef9e7e1528c2d2f09b2b3b13ec48cacb 100644
+--- a/test/unittests/api/isolate-unittest.cc
++++ b/test/unittests/api/isolate-unittest.cc
+@@ -136,7 +136,7 @@ TEST_F(IncumbentContextTest, Basic) {
+ }
+ 
+ namespace {
+-thread_local std::map<v8::CrashKeyId, std::string> crash_keys;
++ std::map<v8::CrashKeyId, std::string> crash_keys;
+ void CrashKeyCallback(v8::CrashKeyId id, const std::string& value) {
+   EXPECT_EQ(crash_keys.count(id), 0u);
+   crash_keys[id] = value;

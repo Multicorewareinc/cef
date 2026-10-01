@@ -1,0 +1,26 @@
+diff --git a/src/dawn/common/Compiler.h b/src/dawn/common/Compiler.h
+index eb7e6239f157e0891a7d413f225be2a80b358e85..a7d306da7714b8931d8b3d0688ff86fa586eedef 100644
+--- a/src/dawn/common/Compiler.h
++++ b/src/dawn/common/Compiler.h
+@@ -35,7 +35,7 @@
+ #define DAWN_COMPILER_IS_GCC 1
+ #endif
+ 
+-#if defined(__i386__) || defined(__x86_64__)
++#if (defined(__i386__) || defined(__x86_64__)) && !defined(_M_ARM64EC)
+ #define DAWN_BREAKPOINT() __asm__ __volatile__("int $3\n\t")
+ #else
+ // TODO(cwallez@chromium.org): Implement breakpoint on all supported architectures
+diff --git a/src/dawn/common/Platform.h b/src/dawn/common/Platform.h
+index 2a8643489f775a204ebaaf90c51b23ece389279c..cf5f914450ced9b7c6c9b5363aa3a04cce16f07e 100644
+--- a/src/dawn/common/Platform.h
++++ b/src/dawn/common/Platform.h
+@@ -68,7 +68,7 @@
+ #endif
+ 
+ #if defined(_WIN64) || defined(__aarch64__) || defined(__x86_64__) || defined(__mips64__) || \
+-    defined(__s390x__) || defined(__PPC64__)
++    defined(__s390x__) || defined(__PPC64__) || defined(_M_ARM64EC)
+ #define DAWN_PLATFORM_IS_64_BIT 1
+ static_assert(sizeof(sizeof(char)) == 8, "Expect sizeof(size_t) == 8");
+ #elif defined(_WIN32) || defined(__arm__) || defined(__i386__) || defined(__mips32__) || \

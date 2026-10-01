@@ -637,7 +637,15 @@ if options.distribsubdir == '':
   else:
     platform_name = platform
 
-  output_dir_name = output_dir_base + '_' + platform_name + platform_arch
+  # ARM64EC binaries are not native ARM64, so name them separately. Uses the
+  # same environment variables as tools/gn_args.py.
+  name_arch = platform_arch
+  if platform == 'windows' and platform_arch == 'arm64' and \
+     os.environ.get('CEF_ENABLE_ARM64') == '1' and \
+     os.environ.get('CEF_ENABLE_ARM64EC') == '1':
+    name_arch = 'arm64ec'
+
+  output_dir_name = output_dir_base + '_' + platform_name + name_arch
   if options.distribsubdirsuffix != '':
     output_dir_name += '_' + options.distribsubdirsuffix
 else:
